@@ -83,6 +83,8 @@ def build_milp_model(instance_name: str):
     )
 
     # -------------------------- Phase3 Hard Constraints (H Series) --------------------------
+    ###### H1 and H7 are contradicted, will look for it later
+    ###### mistake reason: H1 implies one patient occupying one room, contradicting H7, ignoring room capacity, will fix it in a better way
     # ========== H1: No gender mix - Patients of different genders may not share a room on any day ==========
     # Rule: For any room r, day d, all patients staying in r on d must have identical gender
     for r in room_ids:
