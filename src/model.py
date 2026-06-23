@@ -75,7 +75,7 @@ def build_milp_model(instance_name: str):
         (patient_ids, day_range),
         cat=pulp.LpBinary
     )
-    # 4. ot_surg[sur][ot][d]: Surgeon surgeon uses OT ot on day d
+    # 4. ot_surg[sur][ot][d]: Surgeon uses OT ot on day d
     ot_surg_assign = pulp.LpVariable.dicts(
         "surgeon_ot_assign",
         (surgeon_ids, ot_ids, day_range),
@@ -83,18 +83,25 @@ def build_milp_model(instance_name: str):
     )
 
     # -------------------------- Phase3 Hard Constraints (H Series) --------------------------
-    ###### H1 and H7 are contradicted, will look for it later
-    ###### mistake reason: H1 implies one patient occupying one room, contradicting H7, ignoring room capacity, will fix it in a better way
     # ========== H1: No gender mix - Patients of different genders may not share a room on any day ==========
-    # Rule: For any room r, day d, all patients staying in r on d must have identical gender
-    for r in room_ids:
+    # Rule: For any room r, day d, cannot have both A and B gender patients in same room same day
+    for r in rooms:
+        rid = r["id"]
+        cap = r["capacity"]  # Load room maximum occupancy for big-M linear constraint
         for d in day_range:
-            # Split patient groups by gender
-            male_patients = [p for p in patients if p["gender"] == "M"]
-            female_patients = [p for p in patients if p["gender"] == "F"]
-            # Cannot have both male and female patients in same room same day
-            model += pulp.lpSum([y_patient_room[p["id"]][r][d] for p in male_patients]) + \
-                     pulp.lpSum([y_patient_room[p["id"]][r][d] for p in female_patients]) <= 1, f"H1_room{r}_day{d}"
+            # Filter all patients by two gender categories
+            group_A = [p for p in patients if p["gender"] == "A"]
+            group_B = [p for p in patients if p["gender"] == "B"]
+
+            # Sum total patients of each gender staying in this room on day d
+            sum_A = pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in group_A])
+            sum_B = pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in group_B])
+
+            # Core linear big-M constraints to ban mixed gender co-location
+            # If any gender A patient exists, gender B count must be zero
+            model += sum_A <= cap * (1 - sum_B), f"H1_room{rid}_day{d}_noABmix1"
+            # If any gender B patient exists, gender A count must be zero
+            model += sum_B <= cap * (1 - sum_A), f"H1_room{rid}_day{d}_noABmix2"
 
     # ========== H2 Compatible rooms: Patients can only be assigned to compatible rooms ==========
     # Rule: Patient p cannot stay in any room inside p["incompatible_room_ids"]
