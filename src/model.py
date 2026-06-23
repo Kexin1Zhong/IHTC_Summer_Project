@@ -84,24 +84,38 @@ def build_milp_model(instance_name: str):
 
     # -------------------------- Phase3 Hard Constraints (H Series) --------------------------
     # ========== H1: No gender mix - Patients of different genders may not share a room on any day ==========
-    # Rule: For any room r, day d, cannot have both A and B gender patients in same room same day
+    # Hard Constraint Formal Instruction:
+    # 1. For any room r and any simulation day d, the room cannot simultaneously accommodate patients of gender A and gender B.
+    # 2. Multiple patients with identical gender are allowed to occupy the same multi-bed room, limited only by the room’s capacity defined in H7.
+    # 3. Two auxiliary binary variables are introduced to indicate whether the room contains patients of each gender:
+    #    - has_A = 1 if at least one gender A patient stays in room r on day d; otherwise has_A = 0
+    #    - has_B = 1 if at least one gender B patient stays in room r on day d; otherwise has_B = 0
+    # 4. Auxiliary linking constraints: If the total count of a gender exceeds 0, its corresponding binary flag must be forced to 1.
+    # 5. Core feasibility constraint: The sum of two binary flags cannot exceed 1, forbidding mixed-gender co-location.
+    # 6. This formulation fully supports multi-bed rooms and eliminates logical conflict with H7 room capacity limit.
     for r in rooms:
         rid = r["id"]
-        cap = r["capacity"]  # Load room maximum occupancy for big-M linear constraint
+        cap = r["capacity"]  # Obtain maximum number of patients this room can hold
         for d in day_range:
-            # Filter all patients by two gender categories
+            # Split all patients into two gender groups based on dataset label "A" / "B"
             group_A = [p for p in patients if p["gender"] == "A"]
             group_B = [p for p in patients if p["gender"] == "B"]
 
-            # Sum total patients of each gender staying in this room on day d
+            # Calculate total number of gender A patients staying in room rid on day d
             sum_A = pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in group_A])
+            # Calculate total number of gender B patients staying in room rid on day d
             sum_B = pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in group_B])
 
-            # Core linear big-M constraints to ban mixed gender co-location
-            # If any gender A patient exists, gender B count must be zero
-            model += sum_A <= cap * (1 - sum_B), f"H1_room{rid}_day{d}_noABmix1"
-            # If any gender B patient exists, gender A count must be zero
-            model += sum_B <= cap * (1 - sum_A), f"H1_room{rid}_day{d}_noABmix2"
+            # Create binary auxiliary variables to mark whether this room has A / B patients on day d
+            has_A = pulp.LpVariable(f"hasA_room{rid}_day{d}", cat=pulp.LpBinary)
+            has_B = pulp.LpVariable(f"hasB_room{rid}_day{d}", cat=pulp.LpBinary)
+
+            # Link sum_A to binary flag has_A: sum_A > 0 → has_A = 1
+            model += sum_A <= cap * has_A, f"H1_auxA_room{rid}_day{d}"
+            # Link sum_B to binary flag has_B: sum_B > 0 → has_B = 1
+            model += sum_B <= cap * has_B, f"H1_auxB_room{rid}_day{d}"
+            # Core hard constraint: Cannot have both gender A and gender B patients in the same room on the same day
+            model += has_A + has_B <= 1, f"H1_no_gender_mix_room{rid}_day{d}"
 
     # ========== H2 Compatible rooms: Patients can only be assigned to compatible rooms ==========
     # Rule: Patient p cannot stay in any room inside p["incompatible_room_ids"]
