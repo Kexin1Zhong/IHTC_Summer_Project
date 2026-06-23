@@ -1,0 +1,33 @@
+# ========== H1: No gender mix - Patients of different genders may not share a room on any day ==========
+# Rule: For any room r, day d, cannot have both A and B gender patients in same room same day
+#for r in room_ids:
+    #rid = r["id"]
+    #cap = r["capacity"]  # Read the maximum capacity of the ward for linear constraints
+    #for d in day_range:
+        # Screen all patients of gender A and gender B
+        #group_A = [p for p in patients if p["gender"] == "A"]
+        #group_B = [p for p in patients if p["gender"] == "B"]
+
+        # Sum: 
+        # total number of admitted patients of gender A 
+        # and total number of admitted patients of gender B in the ward on the day
+        #sum_A = pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in group_A])
+        #sum_B = pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in group_B])
+
+        # Core linear constraint: 
+        # Patients A and B cannot exist simultaneously
+        # sum_A > 0 → sum_B必须=0
+        #model += sum_A <= cap * (1 - sum_B), f"H1_room{rid}_day{d}_noABmix1"
+        # sum_B > 0 → sum_A必须=0
+        #model += sum_B <= cap * (1 - sum_A), f"H1_room{rid}_day{d}_noABmix2"
+
+
+#mistake_reason:
+#This big-M constraint formulation is mathematically invalid when multiple patients of one single gender occupy a room.
+#Suppose a room with capacity ≥ 2 holds two patients of gender B and zero patients of gender A:
+#sum_B = 2, so 1 - sum_B = -1
+#The right-hand side cap * (1 - sum_B) becomes a negative number
+#The left-hand side sum_A ≥ 0 can never satisfy sum_A ≤ negative value, 
+#leading to an infeasible model even though the single-gender allocation fully complies with the H1 rule.
+#The formula incorrectly assumes the sum of one gender can only be 0 or 1, 
+#ignoring multi-patient single-gender scenarios allowed by room capacity.
