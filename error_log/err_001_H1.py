@@ -3,8 +3,8 @@
 #for r in room_ids:
     #for d in day_range:
         # Split patient groups by gender
-        #male_patients = [p for p in patients if p["gender"] == "A"]
-        #female_patients = [p for p in patients if p["gender"] == "B"]
+        #A_patients = [p for p in patients if p["gender"] == "A"]
+        #B_patients = [p for p in patients if p["gender"] == "B"]
         # Cannot have both male and female patients in same room same day
         #model += pulp.lpSum([y_patient_room[p["id"]][r][d] for p in male_patients]) + \
                  #pulp.lpSum([y_patient_room[p["id"]][r][d] for p in female_patients]) <= 1, f"H1_room{r}_day{d}"
