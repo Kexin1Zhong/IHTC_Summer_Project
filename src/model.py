@@ -135,6 +135,8 @@ def build_milp_model(instance_name: str):
 
     # ========== H8 For each shift, occupied room must be allocated to an on-duty nurse ==========
     # Rule: If room r has patients on day d, every shift s must assign at least one nurse to r
+    ## Here is stricter than H8, will change it later
+    ## Here indicates the number of nurse must be >= room occupied while h8 says at least 1 
     for r in room_ids:
         for d in day_range:
             room_occupied = pulp.lpSum([y_patient_room[p["id"]][r][d] for p in patients])
