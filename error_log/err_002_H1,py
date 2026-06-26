@@ -16,9 +16,9 @@
 
         # Core linear constraint: 
         # Patients A and B cannot exist simultaneously
-        # sum_A > 0 → sum_B=0
-        #model += sum_A <= cap * (1 - sum_B), f"H1_room{rid}_day{d}_noABmix1"
         # sum_B > 0 → sum_A=0
+        #model += sum_A <= cap * (1 - sum_B), f"H1_room{rid}_day{d}_noABmix1"
+        # sum_A > 0 → sum_B=0
         #model += sum_B <= cap * (1 - sum_A), f"H1_room{rid}_day{d}_noABmix2"
 
 
