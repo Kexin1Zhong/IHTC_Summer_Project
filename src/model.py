@@ -56,6 +56,9 @@ def build_milp_model(instance_name: str):
     day_range = list(range(total_days))
     shift_list = ["early", "late", "night"]
 
+    # Pre-build room capacity dict to avoid repeated loop lookup in H8
+    room_cap_dict = {r["id"]: r["capacity"] for r in rooms}
+
     # -------------------------- Core Binary Decision Variables --------------------------
     # 1. x[n][r][d][s]: Nurse n assigned to room r on day d shift s
     x_nurse_room = pulp.LpVariable.dicts(
@@ -134,15 +137,28 @@ def build_milp_model(instance_name: str):
             model += pulp.lpSum([y_patient_room[p["id"]][rid][d] for p in patients]) <= cap, f"H7_room{rid}_cap_d{d}"
 
     # ========== H8 For each shift, occupied room must be allocated to an on-duty nurse ==========
-    # Rule: If room r has patients on day d, every shift s must assign at least one nurse to r
-    ## Here is stricter than H8, will change it later
-    ## Here indicates the number of nurse must be >= room occupied while h8 says at least 1 
+    # Hard Constraint Formal Instruction:
+    # 1. For any room r, any day d, any shift s: if the room contains at least one patient on day d,
+    #    at least one nurse must be assigned to this room during shift s.
+    # 2. Empty rooms (zero patients) have no mandatory nurse assignment requirement.
+    # 3. Auxiliary binary variable has_patient: has_patient = 1 if room r has ≥1 patient on day d; else 0.
+    # 4. Linking big-M constraint: If total room occupants > 0, force has_patient = 1.
+    # 5. Core constraint: Total assigned nurses for the shift ≥ has_patient, which enforces nurse assignment only for occupied rooms.
     for r in room_ids:
         for d in day_range:
+            # Total patients staying in room r on day d
             room_occupied = pulp.lpSum([y_patient_room[p["id"]][r][d] for p in patients])
+            # Get pre-cached room maximum capacity for Big-M parameter
+            room_cap = room_cap_dict[r]
+            # Binary auxiliary flag to mark room occupancy status
+            has_patient = pulp.LpVariable(f"H8_hasPatient_r{r}_d{d}", cat=pulp.LpBinary)
+            # Link occupancy sum to binary flag
+            model += room_occupied <= room_cap * has_patient, f"H8_linkFlag_r{r}_d{d}"
+            # Apply nurse assignment rule for every shift
             for s in shift_list:
-                # If room occupied, sum of nurse assignments to this room shift >= 1
-                model += pulp.lpSum([x_nurse_room[n][r][d][s] for n in nurse_ids]) >= room_occupied, f"H8_r{r}_d{d}_s{s}"
+                total_nurse_on_shift = pulp.lpSum([x_nurse_room[n][r][d][s] for n in nurse_ids])
+                # Core H8 hard constraint
+                model += total_nurse_on_shift >= has_patient, f"H8_core_r{r}_d{d}_s{s}"
 
     # ========== H3 Surgeon daily overtime limit ==========
     # TODO: Implement after extracting surgeon daily max surgery time
