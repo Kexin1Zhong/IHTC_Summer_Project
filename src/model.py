@@ -1,3 +1,12 @@
+# Comments (Aidan):
+# To avoid adding unnecessary complexity, it's generally a good idea to avoid defining
+# binary decision variables which will always be 0. For example, instead of defining variables
+# for every combination of patients and rooms and then adding a constraint that patients can
+# only be assigned to compatible rooms, it's better to only define variables for compatible 
+# combinations of patients and rooms. Same for nurses and rooms!
+# This won't be the difference between your model working or not but might make it faster to solve.
+# Will have a more thorough look through later but otherwise constraints look sensible! 
+
 import json
 import os
 import pulp
