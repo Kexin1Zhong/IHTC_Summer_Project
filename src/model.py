@@ -160,10 +160,46 @@ def build_milp_model(instance_name: str):
                 # Core H8 hard constraint
                 model += total_nurse_on_shift >= has_patient, f"H8_core_r{r}_d{d}_s{s}"
 
-    # ========== H3 Surgeon daily overtime limit ==========
-    # TODO: Implement after extracting surgeon daily max surgery time
-    # ========== H4 OT daily capacity overtime limit ==========
-    # TODO: Implement after extracting OT daily max time
+    # ========== H3 Surgeon overtime: The maximum daily surgery time of a surgeon must not be exceeded ==========
+    # Hard Constraint Formal Instruction:
+    # 1. Each surgeon has a predefined maximum allowed total surgery duration per single simulation day.
+    # 2. For every surgeon s and every day d, the sum of surgery durations of all patients admitted on day d who belong to this surgeon cannot exceed the surgeon’s daily time limit.
+    # 3. Violation of this rule renders the solution infeasible (hard constraint, no penalty).
+    # 4. A patient’s surgery is fixed to their assigned surgeon, so all surgery time of patient p counts towards surgeon p["surgeon_id"] on admit day d.
+    for sur in surgeons:
+        sur_id = sur["id"]
+        sur_max_time = sur["max_daily_surgery_time"]
+        for d in day_range:
+            total_surg_time = 0
+            for p in patients:
+                if p["surgeon_id"] == sur_id:
+                    dur = p["surgery_duration"]
+                    total_surg_time += dur * admit_var[p["id"]][d]
+            model += total_surg_time <= sur_max_time, f"H3_surgeon{sur_id}_day{d}_no_overtime"
+
+    # ========== H4 OT overtime: The duration of all surgeries allocated to an OT on a day must not exceed the OT’s maximum capacity ==========
+    # Hard Constraint Formal Instruction:
+    # 1. Every operating theater (OT) has a predefined fixed upper bound on total cumulative surgery time permitted within a single simulation day, stored as field "max_daily_time" in OT data.
+    # 2. Decision variable definition: ot_surg_assign[surgeon_id][ot_id][day] is a binary variable.
+    #    - Value = 1: Surgeon surgeon_id uses operating theater ot_id to conduct surgeries on day d.
+    #    - Value = 0: Surgeon surgeon_id does not perform any surgery in OT ot_id on day d.
+    # 3. Patient-surgeon binding rule: Each patient p is permanently assigned to one fixed surgeon via field "surgeon_id" in patient data; all surgery time of patient p belongs exclusively to this assigned surgeon.
+    # 4. Time counting logic: The surgery duration of patient p will be counted toward the daily total time of OT ot_id on day d only if two conditions hold simultaneously:
+    #    a) admit_var[p["id"]][d] = 1: Patient p is admitted and receives surgery on day d.
+    #    b) ot_surg_assign[p["surgeon_id"]][ot_id][d] = 1: The fixed surgeon of patient p uses OT ot_id on day d.
+    #    If either condition fails, the surgery duration of patient p contributes zero to the OT’s daily total time.
+    for ot in ots:
+        ot_id = ot["id"]
+        ot_max_cap = ot["max_daily_time"]
+        for d in day_range:
+            # Calculate total occupied surgery time of current OT on day d
+            daily_ot_total_time = pulp.lpSum([
+                p["surgery_duration"] * admit_var[p["id"]][d] * ot_surg_assign[p["surgeon_id"]][ot_id][d]
+                for p in patients
+            ])
+            # Hard constraint: daily total surgery time cannot exceed OT daily maximum capacity
+            model += daily_ot_total_time <= ot_max_cap, f"H4_ot{ot_id}_day{d}_no_overtime"
+
     # ========== H5 Mandatory vs optional patient admission rule ==========
     # TODO: Mandatory patients must have sum(admit_var[p][d]) = 1 over all days
     # ========== H6 Admission day window constraint ==========
