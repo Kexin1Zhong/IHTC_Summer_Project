@@ -201,9 +201,48 @@ def build_milp_model(instance_name: str):
             model += daily_ot_total_time <= ot_max_cap, f"H4_ot{ot_id}_day{d}_no_overtime"
 
     # ========== H5 Mandatory vs optional patient admission rule ==========
-    # TODO: Mandatory patients must have sum(admit_var[p][d]) = 1 over all days
+    # Hard Constraint Formal Instruction:
+    # 1. Patient classification: Each patient carries a boolean field "mandatory" to distinguish two types:
+    #    a) Mandatory patient ("mandatory": True): Treatment cannot be delayed outside the simulation planning window.
+    #       The patient must be scheduled admission on exactly one single day within total_days.
+    #       If zero admission day is selected, the solution is mathematically infeasible (hard rule).
+    #    b) Optional patient ("mandatory": False): Treatment can be delayed to future planning cycles.
+    #       The patient can either be admitted on at most one day inside the window, or not admitted at all (zero admission days).
+    for p in patients:
+        pid = p["id"]
+        is_mandatory = p["mandatory"]
+        # Sum all admission binary flags across every day to count total admission days
+        total_admit_days = pulp.lpSum([admit_var[pid][d] for d in day_range])
+        if is_mandatory:
+            # Hard rule: mandatory patients must have exactly one admission day in the whole planning period
+            model += total_admit_days == 1, f"H5_mandatory_patient{pid}_must_admit_once"
+        else:
+            # Hard rule: optional patients cannot be admitted more than once (0 or 1 admission only)
+            model += total_admit_days <= 1, f"H5_optional_patient{pid}_max_one_admit"
+
     # ========== H6 Admission day window constraint ==========
-    # TODO: Patient admit day must lie between release_date and due_date
+    # Hard Constraint Formal Instruction:
+    # 1. Each patient has an earliest feasible admission day defined by field "surgery_release_day".
+    #    No admission can be scheduled on any day strictly earlier than this release day.
+    # 2. Mandatory patients (mandatory = True) contain an upper bound deadline "surgery_due_day".
+    #    Their admission cannot be scheduled on any day later than this due deadline.
+    # 3. Optional patients (mandatory = False) have no upper time limit within the planning horizon.
+    #    They can be admitted on any day >= surgery_release_day, or fully postponed without admission.
+    for p in patients:
+        pid = p["id"]
+        release_day = p["surgery_release_day"]
+        # Separate logic branch for mandatory patients with a hard deadline
+        if p["mandatory"]:
+            due_day = p["surgery_due_day"]
+            for d in day_range:
+                # Block days earlier than release or later than the mandatory deadline
+                if d < release_day or d > due_day:
+                    model += admit_var[pid][d] == 0, f"H6_mandatory_p{pid}_invalid_day{d}"
+        else:
+            # Optional patient: only restrict early days, no upper bound cutoff
+            for d in day_range:
+                if d < release_day:
+                    model += admit_var[pid][d] == 0, f"H6_optional_p{pid}_invalid_day{d}"
 
     # -------------------------- Phase4 Soft Constraints & Objective Function (S Series) --------------------------
     total_penalty = 0
