@@ -299,3 +299,52 @@ def build_milp_model(instance_name: str):
     }
     return model, data, index_sets, var_dict
 
+# Batch test all test cases
+if __name__ == "__main__":
+    test_case_list = [f"test{i:02d}" for i in range(1, 11)]
+    for case in test_case_list:
+        raw_data = load_instance(case)
+        pats, nurs, days, shifts, rms, surgs, ots, w = extract_basic_info(raw_data)
+        print(f"[{case}] Patients: {len(pats)}, Nurses: {len(nurs)}, Rooms: {len(rms)}, Surgeons: {len(surgs)}, OTs: {len(ots)}, Total days: {days}")
+
+    # Preload model structure
+    test_model, test_data, idx, vars = build_milp_model("test01")
+    print("\nModel loaded successfully (All H hard constraints included)")
+    print(f"Nurses: {len(idx['nurse_ids'])}, Patients: {len(idx['patient_ids'])}, Rooms: {len(idx['room_ids'])}, Days: {len(idx['day_range'])}")
+
+    # ========== Dedicated H7 Constraint Validation Test Logic ==========
+    print("\n==================== H7 Constraint Validation Test ====================")
+    test_model, test_data, idx, vars = build_milp_model("test01")
+    # Solve, mute solver log
+    test_model.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=120))
+    print(f"Solver Status: {pulp.LpStatus[test_model.status]}")
+
+    if test_model.status != pulp.LpStatusOptimal:
+        print("Warning: No feasible solution found, hard constraints conflict!")
+    else:
+        print("Feasible schedule found, start H7 room capacity check...")
+
+    all_rooms = test_data["rooms"]
+    all_patients = test_data["patients"]
+    y = vars["y_patient_room"]
+    h7_violation_count = 0
+
+    # H7 Rule: Total patients in one room per day cannot exceed room capacity
+    for room in all_rooms:
+        rid = room["id"]
+        cap = room["capacity"]
+        for d in idx["day_range"]:
+            total_occupy = 0.0
+            for p in all_patients:
+                pid = p["id"]
+                val = pulp.value(y[pid][rid][d])
+                total_occupy += val
+            # Exceed capacity = violation
+            if total_occupy - cap > 1e-6:
+                h7_violation_count += 1
+                print(f"H7 VIOLATION DETECTED: Room {rid}, Day {d} | Capacity={cap}, Actual occupants={total_occupy:.2f}")
+
+    if h7_violation_count == 0:
+        print("✅ H7 Test Passed: All rooms satisfy daily capacity limit")
+    else:
+        print(f"❌ H7 Test Failed: Total {h7_violation_count} room capacity over-limit violations")

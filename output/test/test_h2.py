@@ -299,3 +299,50 @@ def build_milp_model(instance_name: str):
     }
     return model, data, index_sets, var_dict
 
+# Batch test all test cases
+if __name__ == "__main__":
+    test_case_list = [f"test{i:02d}" for i in range(1, 11)]
+    for case in test_case_list:
+        raw_data = load_instance(case)
+        pats, nurs, days, shifts, rms, surgs, ots, w = extract_basic_info(raw_data)
+        print(f"[{case}] Patients: {len(pats)}, Nurses: {len(nurs)}, Rooms: {len(rms)}, Surgeons: {len(surgs)}, OTs: {len(ots)}, Total days: {days}")
+
+    # Test model initialization
+    test_model, test_data, idx, vars = build_milp_model("test01")
+    print("\nModel loaded successfully (All H hard constraints included)")
+    print(f"Nurses: {len(idx['nurse_ids'])}, Patients: {len(idx['patient_ids'])}, Rooms: {len(idx['room_ids'])}, Days: {len(idx['day_range'])}")
+
+    # ========== Dedicated H2 Constraint Validation Test Logic ==========
+    print("\n==================== H2 Constraint Validation Test ====================")
+    # Rebuild model and solve
+    test_model, test_data, idx, vars = build_milp_model("test01")
+    test_model.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=120))
+    print(f"Solver Status: {pulp.LpStatus[test_model.status]}")
+
+    if test_model.status != pulp.LpStatusOptimal:
+        print("Warning: No feasible solution found, hard constraints conflict!")
+    else:
+        print("Feasible schedule found, start H2 check...")
+
+    all_patients = test_data["patients"]
+    y = vars["y_patient_room"]
+    h2_violation_count = 0
+
+    # H2 Rule Verification: Patients cannot be placed in rooms incompatible with them
+    for p in all_patients:
+        pid = p["id"]
+        forbidden_rooms = p["incompatible_room_ids"]
+        for rid in forbidden_rooms:
+            for d in idx["day_range"]:
+                occupy_val = pulp.value(y[pid][rid][d])
+                # If the patient has any check-in records for restricted rooms, a violation shall be confirmed
+                if occupy_val > 1e-6:
+                    h2_violation_count += 1
+                    print(f"H2 VIOLATION DETECTED: Patient {pid} incompatible room {rid}, Day {d} | Occupied = {occupy_val}")
+
+    if h2_violation_count == 0:
+        print("✅ H2 Test Passed: No patient assigned to incompatible rooms")
+    else:
+        print(f"❌ H2 Test Failed: Total {h2_violation_count} incompatible room assignments found")
+
+    
