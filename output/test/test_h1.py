@@ -180,26 +180,49 @@ def build_milp_model(instance_name: str):
     # ========== H4 OT overtime: The duration of all surgeries allocated to an OT on a day must not exceed the OT’s maximum capacity ==========
     # Hard Constraint Formal Instruction:
     # 1. Every operating theater (OT) stores a daily time limit list named "availability", where availability[d] is the maximum total surgery time allowed on day d.
-    # 2. Decision variable definition: ot_surg_assign[surgeon_id][ot_id][day] is a binary variable.
-    #    - Value = 1: Surgeon surgeon_id uses operating theater ot_id to conduct surgeries on day d.
-    #    - Value = 0: Surgeon surgeon_id does not perform any surgery in OT ot_id on day d.
-    # 3. Patient-surgeon binding rule: Each patient p is permanently assigned to one fixed surgeon via field "surgeon_id" in patient data; all surgery time of patient p belongs exclusively to this assigned surgeon.
-    # 4. Time counting logic: The surgery duration of patient p will be counted toward the daily total time of OT ot_id on day d only if two conditions hold simultaneously:
-    #    a) admit_var[p["id"]][d] = 1: Patient p is admitted and receives surgery on day d.
-    #    b) ot_surg_assign[p["surgeon_id"]][ot_id][d] = 1: The fixed surgeon of patient p uses OT ot_id on day d.
-    #    If either condition fails, the surgery duration of patient p contributes zero to the OT’s daily total time.
-    # 5. Hard constraint: For each OT and each day, aggregated surgery time cannot exceed OT's daily availability value.
+    # 2. Binary variable ot_surg_assign[sur][ot][d] = 1 if surgeon sur uses OT ot on day d, else 0.
+    # 3. Binary variable admit_var[p][d] = 1 if patient p is admitted on day d, else 0.
+    # 4. Introduce auxiliary binary var use_p_ot[p][ot][d] = admit_var[p][d] * ot_surg_assign[p["surgeon_id"]][ot][d]
+    #    Linearization rules for product of two binaries a*b:
+    #       use_p_ot <= admit_var
+    #       use_p_ot <= ot_surg_assign
+    #       use_p_ot >= admit_var + ot_surg_assign - 1
+    # 5. Total surgery time for OT ot on day d = sum over all patients (p["surgery_duration"] * use_p_ot[p][ot][d])
+    # 6. Aggregated surgery time cannot exceed OT daily availability value (hard constraint).
+
+    # Step 1: Create auxiliary variable for patient-OT-day usage (linearize product)
+    use_p_ot = pulp.LpVariable.dicts(
+        "patient_ot_usage",
+        (patient_ids, ot_ids, day_range),
+        cat=pulp.LpBinary
+    )
+
+    # Step 2: Linearization constraints for use_p_ot[p][ot][d] = admit_var[p][d] * ot_surg_assign[sur][ot][d]
+    for p in patients:
+        pid = p["id"]
+        sur_p = p["surgeon_id"]
+        dur_p = p["surgery_duration"]
+        for ot in ots:
+            ot_id = ot["id"]
+            for d in day_range:
+                aux = use_p_ot[pid][ot_id][d]
+                a = admit_var[pid][d]
+                b = ot_surg_assign[sur_p][ot_id][d]
+                # Linearize a * b
+                model += aux <= a
+                model += aux <= b
+                model += aux >= a + b - 1
+
+    # Step3: OT daily capacity limit constraint
     for ot in ots:
         ot_id = ot["id"]
-        ot_daily_availability = ot["availability"]  # 真实字段：availability，是每日时长列表
+        ot_daily_availability = ot["availability"]
         for d in day_range:
-            ot_max_cap = ot_daily_availability[d]  # 取出第d天手术室上限
-            # Calculate total occupied surgery time of current OT on day d
+            ot_max_cap = ot_daily_availability[d]
             daily_ot_total_time = pulp.lpSum([
-                p["surgery_duration"] * admit_var[p["id"]][d] * ot_surg_assign[p["surgeon_id"]][ot_id][d]
+                p["surgery_duration"] * use_p_ot[p["id"]][ot_id][d]
                 for p in patients
             ])
-            # Hard constraint: daily total surgery time cannot exceed OT daily maximum capacity
             model += daily_ot_total_time <= ot_max_cap, f"H4_ot{ot_id}_day{d}_no_overtime"
 
     # ========== H5 Mandatory vs optional patient admission rule ==========
