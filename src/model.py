@@ -1,3 +1,13 @@
+import sys
+import os
+# 定位项目根目录 IHTC_Summer_Project
+current_file = os.path.abspath(__file__)
+# 当前文件路径 src/model.py，向上跳一级 = 项目根目录
+project_root = os.path.abspath(os.path.join(os.path.dirname(current_file), "../"))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+
 import json
 import os
 import pulp
@@ -99,6 +109,23 @@ def build_milp_model(instance_name: str):
         cat=pulp.LpBinary
     )
 
+    # -------------------------- Pack index & variable dict FIRST --------------------------
+    index_sets = {
+        "nurse_ids": nurse_ids,
+        "patient_ids": patient_ids,
+        "room_ids": room_ids,
+        "surgeon_ids": surgeon_ids,
+        "ot_ids": ot_ids,
+        "day_range": day_range,
+        "shifts": shift_list
+    }
+    var_dict = {
+        "x_nurse_room": x_nurse_room,
+        "y_patient_room": y_patient_room,
+        "admit_var": admit_var,
+        "ot_surg_assign": ot_surg_assign
+    }
+
     # -------------------------- Phase3 Hard Constraints (H Series) --------------------------
     # All hard constraint logic moved to src/hard_constraints/ separate files
     add_h1_constraint(model, data, index_sets, var_dict)
@@ -122,20 +149,4 @@ def build_milp_model(instance_name: str):
     # S8 Unplanned optional patient penalty
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 
-    # Pack all index sets and variables for later constraint writing
-    index_sets = {
-        "nurse_ids": nurse_ids,
-        "patient_ids": patient_ids,
-        "room_ids": room_ids,
-        "surgeon_ids": surgeon_ids,
-        "ot_ids": ot_ids,
-        "day_range": day_range,
-        "shifts": shift_list
-    }
-    var_dict = {
-        "x_nurse_room": x_nurse_room,
-        "y_patient_room": y_patient_room,
-        "admit_var": admit_var,
-        "ot_surg_assign": ot_surg_assign
-    }
     return model, data, index_sets, var_dict
