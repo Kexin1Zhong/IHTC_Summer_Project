@@ -4,7 +4,7 @@ def add_h8_constraint(model, data, index_sets, var_dict):
     """
     H8 Hard Constraint: Any room with patients must have at least one assigned nurse for every shift on that day
     """
-    # 提取所需数据与索引
+    # Extract required data and indexes
     patients = data["patients"]
     rooms = data["rooms"]
     nurse_ids = index_sets["nurse_ids"]
@@ -14,7 +14,7 @@ def add_h8_constraint(model, data, index_sets, var_dict):
     y_patient_room = var_dict["y_patient_room"]
     x_nurse_room = var_dict["x_nurse_room"]
 
-    # 预存房间容量，用于Big-M
+    # Pre-stored room capacity for Big-M
     room_cap_dict = {r["id"]: r["capacity"] for r in rooms}
 
 # Hard Constraint Formal Instruction:
@@ -43,7 +43,8 @@ def add_h8_constraint(model, data, index_sets, var_dict):
 
 def validate_h8_solution(sol_data, index_sets, var_dict):
     """
-    H8 校验函数：检查有人的房间每个班次都分配了护士
+    H8 Check Function: 
+    Verify that nurses are assigned to every shift in occupied rooms
     """
     patients = sol_data["patients"]
     rooms = sol_data["rooms"]
@@ -58,15 +59,16 @@ def validate_h8_solution(sol_data, index_sets, var_dict):
 
     for r in room_ids:
         for d in day_range:
-            # 统计当日房间是否有人
+            # Count whether the room is occupied on the day
             total_p = 0.0
             for p in patients:
                 pid = p["id"]
                 total_p += pulp.value(y[pid][r][d])
-            # 房间为空，跳过校验
+            # Room is empty, skip verification
             if total_p < 1e-6:
                 continue
-            # 房间有人，遍历所有班次检查护士
+            # The room is occupied; 
+            # check nurses across all shifts
             for s in shift_list:
                 nurse_sum = 0.0
                 for n in nurse_ids:

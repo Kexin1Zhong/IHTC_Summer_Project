@@ -1,8 +1,9 @@
 import sys
 import os
-# 定位项目根目录 IHTC_Summer_Project
+# Locate the project root directory IHTC_Summer_Project
 current_file = os.path.abspath(__file__)
-# 当前文件路径 src/model.py，向上跳一级 = 项目根目录
+# Current file path src/model.py, 
+# jumping up one level = project root directory
 project_root = os.path.abspath(os.path.join(os.path.dirname(current_file), "../"))
 if project_root not in sys.path:
     sys.path.append(project_root)

@@ -1,15 +1,17 @@
-# 自动挂载项目根目录，彻底解决 No module named 'src'
+# Automatically mount the project root directory 
+# to completely resolve the error "No module named 'src'"
 import sys
 import os
 
 current_file = os.path.abspath(__file__)
-# 当前文件路径：src/validator/hard_validator.py，向上两层回到项目根目录
+# Current file path: src/validator/hard_validator.py, 
+# go up two levels to return to the project root directory
 project_root = os.path.abspath(os.path.join(os.path.dirname(current_file), "../../"))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
 import pulp
-# 导入所有硬约束校验函数
+# Import all hard constraint verification functions
 from src.hard_constraints.h1_gender_mix import validate_h1_solution
 from src.hard_constraints.h2_incompatible_room import validate_h2_solution
 from src.hard_constraints.h3_surgeon_overtime import validate_h3_solution
@@ -54,10 +56,11 @@ def full_all_hard_validation(sol_data, index_sets, var_dict):
 
 
 if __name__ == "__main__":
-    # 独立运行测试入口：加载test01算例、求解、全量校验
+    # Independent Operation Test Entry: Load test01 case, 
+    # solve and conduct full verification
     from src.model import build_milp_model
     model, data, index_sets, var_dict = build_milp_model("test01")
-    # 打开求解器日志，方便排查无解/卡顿
+    # Open the solver log to facilitate troubleshooting unsolvable cases or freezes
     model.solve(pulp.PULP_CBC_CMD(msg=1, timeLimit=120))
     solver_status = pulp.LpStatus[model.status]
     print(f"\nSolver finished, Case: test01 | Status: {solver_status}")
