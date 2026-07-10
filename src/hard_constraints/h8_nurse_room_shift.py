@@ -10,9 +10,11 @@ def add_h8_constraint(model, data, index_sets, var_dict):
     nurse_ids = index_sets["nurse_ids"]
     room_ids = index_sets["room_ids"]
     day_range = index_sets["day_range"]
-    shift_list = index_sets["shifts"]
+    # Only modify the key here: shifts → shift_types
+    shift_list = index_sets["shift_types"]
     y_patient_room = var_dict["y_patient_room"]
-    x_nurse_room = var_dict["x_nurse_room"]
+    # Fix Key Error: x_nurse_room → x_nurse_room_shift
+    x_nurse_room = var_dict["x_nurse_room_shift"]
 
     # Pre-stored room capacity for Big-M
     room_cap_dict = {r["id"]: r["capacity"] for r in rooms}
@@ -51,9 +53,11 @@ def validate_h8_solution(sol_data, index_sets, var_dict):
     nurse_ids = index_sets["nurse_ids"]
     room_ids = index_sets["room_ids"]
     day_range = index_sets["day_range"]
-    shift_list = index_sets["shifts"]
+    # Only modify the key here: shifts → shift_types
+    shift_list = index_sets["shift_types"]
     y = var_dict["y_patient_room"]
-    x = var_dict["x_nurse_room"]
+    # Fix Key Error: x_nurse_room → x_nurse_room_shift
+    x = var_dict["x_nurse_room_shift"]
 
     h8_violation_count = 0
 

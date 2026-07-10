@@ -24,6 +24,11 @@ from src.hard_constraints.h6_admit_window import add_h6_constraint
 from src.hard_constraints.h7_room_capacity import add_h7_constraint
 from src.hard_constraints.h8_nurse_room_shift import add_h8_constraint
 
+# ========== 新增：导入已完成的3条软约束建模函数 ==========
+from src.soft_constraints.s1_age_gap import add_s1_age_gap_penalty
+from src.soft_constraints.s2_nurse_skill_shortage import add_s2_nurse_skill_penalty
+from src.soft_constraints.s3_nurse_continuity import add_s3_care_continuity_penalty
+
 
 def load_instance(instance_name: str) -> dict:
     """
@@ -111,6 +116,7 @@ def build_milp_model(instance_name: str):
     )
 
     # -------------------------- Pack index & variable dict FIRST --------------------------
+    # 修正key统一为shift_types，和S1/S2/S3代码匹配，防止KeyError
     index_sets = {
         "nurse_ids": nurse_ids,
         "patient_ids": patient_ids,
@@ -118,10 +124,10 @@ def build_milp_model(instance_name: str):
         "surgeon_ids": surgeon_ids,
         "ot_ids": ot_ids,
         "day_range": day_range,
-        "shifts": shift_list
+        "shift_types": shift_list
     }
     var_dict = {
-        "x_nurse_room": x_nurse_room,
+        "x_nurse_room_shift": x_nurse_room,  # 同步软约束代码里的变量key x_nurse_room_shift
         "y_patient_room": y_patient_room,
         "admit_var": admit_var,
         "ot_surg_assign": ot_surg_assign
@@ -141,13 +147,21 @@ def build_milp_model(instance_name: str):
     # -------------------------- Phase4 Soft Constraints & Objective Function (S Series) --------------------------
     total_penalty = 0
     # S1 Age group gap penalty
+    s1_pen = add_s1_age_gap_penalty(model, data, index_sets, var_dict)
+    total_penalty += s1_pen
+
     # S2 Nurse skill level shortage penalty
+    s2_pen = add_s2_nurse_skill_penalty(model, data, index_sets, var_dict)
+    total_penalty += s2_pen
+
     # S3 Continuity of care (distinct nurse count) penalty
-    # S4 Nurse workload excess penalty
-    # S5 Minimize daily opened OT count penalty
-    # S6 Surgeon cross-OT transfer penalty
-    # S7 Patient admission delay penalty
-    # S8 Unplanned optional patient penalty
+    s3_pen = add_s3_care_continuity_penalty(model, data, index_sets, var_dict)
+    total_penalty += s3_pen
+
+    # S4~S8 reserved insertion position
+    # s4_pen = add_s4_xxx_penalty(model, data, index_sets, var_dict)
+    # total_penalty += s4_pen
+
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 
     return model, data, index_sets, var_dict

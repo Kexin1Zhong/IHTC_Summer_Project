@@ -8,7 +8,7 @@ def add_s2_nurse_skill_penalty(model: pulp.LpProblem, data: dict, index_sets: di
         model: pulp MILP model instance
         data: raw input json data
         index_sets: pre-defined index sets
-        var_dict: decision variables dict (y_patient_room, x_nurse_room_shift required)
+        var_dict: decision variables dict (y_patient_room, x_nurse_room_shift, admit_var required)
     Return:
         pulp.LpAffineExpression: total weighted penalty of S2 to add to global total_penalty
     """
@@ -27,8 +27,9 @@ def add_s2_nurse_skill_penalty(model: pulp.LpProblem, data: dict, index_sets: di
     # Unpack core decision variables
     y = var_dict["y_patient_room"]
     x = var_dict["x_nurse_room_shift"]
+    admit = var_dict["admit_var"]
 
-    # Preload patient skill requirement dict: pid -> list of daily required skill
+    # Preload patient skill requirement dict: pid -> list of daily required skill (length = LOS)
     patient_skill_req = {p["id"]: p["skill_level_required"] for p in patients}
     # Preload nurse skill dict: nid -> fixed skill level
     nurse_skill = {n["id"]: n["skill_level"] for n in nurses}
@@ -52,9 +53,33 @@ def add_s2_nurse_skill_penalty(model: pulp.LpProblem, data: dict, index_sets: di
 
                 for p in patients:
                     pid = p["id"]
-                    # Patient p's min required skill on day d
-                    req_skill = patient_skill_req[pid][d]
+                    los = p["length_of_stay"]
+                    req_list = patient_skill_req[pid]
                     y_p_r_d = y[pid][rid][d]
+
+                    # ========== Fix Out-of-Bounds Core Logic ==========
+                    # Find the initial admission day t0 of the patient; 
+                    # globally, d - t0 = Day t of hospitalization (list subscript)
+                    t0_flag_sum = pulp.lpSum([admit[pid][t0] for t0 in day_range])
+                    # Auxiliary variable: 
+                    # t represents the patient's t-th day of hospitalization within the overall d days
+                    t_idx = pulp.LpVariable(f"s2_tidx_p{pid}_d{d}", lowBound=0, cat=pulp.LpInteger)
+                    # Constraint: 
+                    # t_idx = d - t0 only if y[p][r][d]=1;
+                    # otherwise, it is meaningless
+                    for t0 in day_range:
+                        # If admission occurs on the same day, 
+                        # d-t0 represents the offset of hospital stay days
+                        model += t_idx >= (d - t0) - max_skill * (1 - admit[pid][t0]) - max_skill * (1 - y_p_r_d)
+                        model += t_idx <= (d - t0) + max_skill * (1 - admit[pid][t0]) + max_skill * (1 - y_p_r_d)
+                    # Force t_idx not to exceed the total length of hospitalization 
+                    # to prevent list out-of-bounds errors
+                    model += t_idx <= los - 1
+
+                    # Original error line: 
+                    # Stop using d directly; 
+                    # instead, use t_idx to read the corresponding skill requirements
+                    req_skill = req_list[t_idx]
 
                     for n in nurses:
                         nid = n["id"]
