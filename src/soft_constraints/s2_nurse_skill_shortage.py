@@ -2,15 +2,11 @@ import pulp
 
 def add_s2_nurse_skill_penalty(model: pulp.LpProblem, data: dict, index_sets: dict, var_dict: dict) -> pulp.LpAffineExpression:
     """
-    S2 Nurse skill shortage soft constraint
-    Penalty = skill_required - nurse_skill if nurse skill < patient required min skill, else 0
-    Args:
-        model: pulp MILP model instance
-        data: raw input json data
-        index_sets: pre-defined index sets
-        var_dict: decision variables dict (y_patient_room, x_nurse_room_shift, admit_var required)
-    Return:
-        pulp.LpAffineExpression: total weighted penalty of S2 to add to global total_penalty
+    S2 Minimum skill level Soft Constraint (Simplified Low-Version)
+    Rule: If assigned nurse skill < patient daily required skill → penalty = req_skill - nurse_skill
+    Nurse skill ≥ required: no penalty
+    Weight key: room_nurse_skill
+    Major optimization: Remove t offset loop, skip patients not occupying room on day d
     """
     # Unpack index sets
     room_ids = index_sets["room_ids"]
@@ -18,93 +14,96 @@ def add_s2_nurse_skill_penalty(model: pulp.LpProblem, data: dict, index_sets: di
     shift_types = index_sets["shift_types"]
     patient_ids = index_sets["patient_ids"]
     nurse_ids = index_sets["nurse_ids"]
+    max_day = max(day_range)
 
-    # Raw data & weight
+    # Raw input data & penalty weight
     patients = data["patients"]
     nurses = data["nurses"]
     weight_s2 = data["weights"]["room_nurse_skill"]
+    max_skill = data["skill_levels"] - 1  # Big-M upper bound for skill gap
 
-    # Unpack core decision variables
+    # Unpack core decision variables (unified key names)
     y = var_dict["y_patient_room"]
     x = var_dict["x_nurse_room_shift"]
     admit = var_dict["admit_var"]
 
-    # Preload patient skill requirement dict: pid -> list of daily required skill (length = LOS)
+    # Pre-cache static patient & nurse data to avoid repeated lookup
+    patient_los = {p["id"]: p["length_of_stay"] for p in patients}
     patient_skill_req = {p["id"]: p["skill_level_required"] for p in patients}
-    # Preload nurse skill dict: nid -> fixed skill level
     nurse_skill = {n["id"]: n["skill_level"] for n in nurses}
-    max_skill = data["skill_levels"] - 1  # max possible skill value for Big-M
 
-    # Aux variable: total skill shortage penalty for room r, day d, shift s
+    # Aux variable: total skill shortage penalty for each room-day-shift
     pen_skill_short = pulp.LpVariable.dicts(
         "s2_pen_skill_shortage",
         (room_ids, day_range, shift_types),
         lowBound=0,
         cat=pulp.LpContinuous
     )
+    total_s2_penalty = 0
 
-    s2_total_expr = 0
-
+    # Outer triple loop: Room → Day → Shift
     for rid in room_ids:
         for d in day_range:
             for s in shift_types:
-                # Local expression to sum all skill shortage in this room-day-shift
-                shift_shortage = 0
+                shift_total_shortage = 0
 
+                # Iterate all patients
                 for p in patients:
                     pid = p["id"]
-                    los = p["length_of_stay"]
+                    los = patient_los[pid]
                     req_list = patient_skill_req[pid]
                     y_p_r_d = y[pid][rid][d]
 
-                    # ========== Fix Out-of-Bounds Core Logic ==========
-                    # Find the initial admission day t0 of the patient; 
-                    # globally, d - t0 = Day t of hospitalization (list subscript)
-                    t0_flag_sum = pulp.lpSum([admit[pid][t0] for t0 in day_range])
-                    # Auxiliary variable: 
-                    # t represents the patient's t-th day of hospitalization within the overall d days
-                    t_idx = pulp.LpVariable(f"s2_tidx_p{pid}_d{d}", lowBound=0, cat=pulp.LpInteger)
-                    # Constraint: 
-                    # t_idx = d - t0 only if y[p][r][d]=1;
-                    # otherwise, it is meaningless
+                    # Critical Filter: Skip patient if they do NOT stay in this room on day d
+                    # No auxiliary variables/constraints will be generated for skipped patients
+                    if y_p_r_d == 0:
+                        continue
+
+                    # Calculate patient's relative day of stay t (global day d minus admission day t0)
+                    # Enumerate all possible admission days t0 to get valid relative offset t
                     for t0 in day_range:
-                        # If admission occurs on the same day, 
-                        # d-t0 represents the offset of hospital stay days
-                        model += t_idx >= (d - t0) - max_skill * (1 - admit[pid][t0]) - max_skill * (1 - y_p_r_d)
-                        model += t_idx <= (d - t0) + max_skill * (1 - admit[pid][t0]) + max_skill * (1 - y_p_r_d)
-                    # Force t_idx not to exceed the total length of hospitalization 
-                    # to prevent list out-of-bounds errors
-                    model += t_idx <= los - 1
+                        t = d - t0
+                        # Skip invalid offset: t out of patient's length of stay range
+                        if t < 0 or t >= los:
+                            continue
+                        # Binary flag: patient admitted on t0 AND occupies this room on day d
+                        admit_flag = pulp.LpVariable(f"s2_admit_flag_p{pid}_t0{t0}_d{d}", cat=pulp.LpBinary)
+                        model += admit_flag <= admit[pid][t0]
+                        model += admit_flag <= y_p_r_d
+                        model += admit_flag >= admit[pid][t0] + y_p_r_d - 1
 
-                    # Original error line: 
-                    # Stop using d directly; 
-                    # instead, use t_idx to read the corresponding skill requirements
-                    req_skill = req_list[t_idx]
+                        # Fixed constant required skill (no variable list index error)
+                        fixed_req_skill = req_list[t]
 
-                    for n in nurses:
-                        nid = n["id"]
-                        ns = nurse_skill[nid]
-                        x_n_r_d_s = x[nid][rid][d][s]
+                        # Iterate all nurses assigned to this room-day-shift
+                        for n in nurses:
+                            nid = n["id"]
+                            nurse_s = nurse_skill[nid]
+                            x_n_r_d_s = x[nid][rid][d][s]
 
-                        # Aux binary: patient p in room r day d AND nurse n assigned to room r day d shift s
-                        assign_flag = pulp.LpVariable(f"s2_flag_p{pid}_n{nid}_r{rid}_d{d}_{s}", cat=pulp.LpBinary)
-                        # Linearize assign_flag = y_p_r_d * x_n_r_d_s
-                        model += assign_flag <= y_p_r_d
-                        model += assign_flag <= x_n_r_d_s
-                        model += assign_flag >= y_p_r_d + x_n_r_d_s - 1
+                            # Binary flag: Nurse n assigned to room r day d shift s
+                            assign_flag = pulp.LpVariable(f"s2_nurse_flag_p{pid}_n{nid}_r{rid}_d{d}_{s}", cat=pulp.LpBinary)
+                            model += assign_flag <= y_p_r_d
+                            model += assign_flag <= x_n_r_d_s
+                            model += assign_flag >= y_p_r_d + x_n_r_d_s - 1
 
-                        # Shortage for this pair: max(0, req_skill - ns) * assign_flag
-                        shortage = pulp.LpVariable(f"s2_short_p{pid}_n{nid}_r{rid}_d{d}_{s}", lowBound=0, cat=pulp.LpContinuous)
-                        # Linear constraint for shortage >= (req_skill - ns) * assign_flag
-                        model += shortage >= (req_skill - ns) - max_skill * (1 - assign_flag)
-                        model += shortage <= (req_skill - ns) + max_skill * (1 - assign_flag)
-                        model += shortage <= max_skill * assign_flag
+                            # Continuous shortage variable: max(0, fixed_req_skill - nurse_s)
+                            shortage = pulp.LpVariable(
+                                f"s2_shortage_p{pid}_n{nid}_r{rid}_d{d}_{s}_t0{t0}",
+                                lowBound=0,
+                                cat=pulp.LpContinuous
+                            )
+                            skill_gap = fixed_req_skill - nurse_s
+                            # Linear constraints for shortage calculation
+                            model += shortage >= skill_gap * assign_flag - max_skill * (1 - admit_flag)
+                            model += shortage <= skill_gap * assign_flag + max_skill * (1 - admit_flag)
+                            model += shortage <= max_skill * assign_flag
 
-                        shift_shortage += shortage
+                            shift_total_shortage += shortage
 
-                # Penalty variable >= total shortage of this room-day-shift
-                model += pen_skill_short[rid][d][s] >= shift_shortage, f"S2_pen_sum_r{rid}_d{d}_{s}"
-                # Accumulate weighted penalty
-                s2_total_expr += weight_s2 * pen_skill_short[rid][d][s]
+                # Link total shortage of this room-day-shift to penalty variable
+                model += pen_skill_short[rid][d][s] >= shift_total_shortage, f"S2_room{rid}_day{d}_shift{s}_sum"
+                # Accumulate weighted global penalty
+                total_s2_penalty += weight_s2 * pen_skill_short[rid][d][s]
 
-    return s2_total_expr
+    return total_s2_penalty
