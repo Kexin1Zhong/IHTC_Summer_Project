@@ -24,10 +24,11 @@ from src.hard_constraints.h6_admit_window import add_h6_constraint
 from src.hard_constraints.h7_room_capacity import add_h7_constraint
 from src.hard_constraints.h8_nurse_room_shift import add_h8_constraint
 
-# ========== 新增：导入已完成的3条软约束建模函数 ==========
+# ========== Import all 4 soft constraint modeling functions (Newly added S4) ==========
 from src.soft_constraints.s1_age_gap import add_s1_age_gap_penalty
 from src.soft_constraints.s2_nurse_skill_shortage import add_s2_nurse_skill_penalty
 from src.soft_constraints.s3_nurse_continuity import add_s3_care_continuity_penalty
+from src.soft_constraints.s4_max_workload import add_s4_max_workload_penalty  # 新增S4导入
 
 
 def load_instance(instance_name: str) -> dict:
@@ -116,7 +117,8 @@ def build_milp_model(instance_name: str):
     )
 
     # -------------------------- Pack index & variable dict FIRST --------------------------
-    # 修正key统一为shift_types，和S1/S2/S3代码匹配，防止KeyError
+    # Revise the key to be unified as shift_types 
+    # to match the codes of S1/S2/S3/S4 and avoid KeyError
     index_sets = {
         "nurse_ids": nurse_ids,
         "patient_ids": patient_ids,
@@ -127,7 +129,7 @@ def build_milp_model(instance_name: str):
         "shift_types": shift_list
     }
     var_dict = {
-        "x_nurse_room_shift": x_nurse_room,  # 同步软约束代码里的变量key x_nurse_room_shift
+        "x_nurse_room_shift": x_nurse_room,  # 同步所有软约束变量key
         "y_patient_room": y_patient_room,
         "admit_var": admit_var,
         "ot_surg_assign": ot_surg_assign
@@ -158,9 +160,13 @@ def build_milp_model(instance_name: str):
     s3_pen = add_s3_care_continuity_penalty(model, data, index_sets, var_dict)
     total_penalty += s3_pen
 
-    # S4~S8 reserved insertion position
-    # s4_pen = add_s4_xxx_penalty(model, data, index_sets, var_dict)
-    # total_penalty += s4_pen
+    # S4 Max nurse workload penalty (新增调用)
+    s4_pen = add_s4_max_workload_penalty(model, data, index_sets, var_dict)
+    total_penalty += s4_pen
+
+    # S5~S8 reserved insertion position
+    # s5_pen = add_s5_xxx_penalty(model, data, index_sets, var_dict)
+    # total_penalty += s5_pen
 
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 

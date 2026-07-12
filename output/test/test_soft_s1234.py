@@ -16,19 +16,25 @@ import pulp
 if __name__ == "__main__":
     # Config test case name, easy to switch datasets
     test_case = "test01"
-    # Build full model (Hard H1-H8 + S1/S2/S3 soft)
+    # Build full model (Hard H1-H8 + S1/S2/S3/S4 soft)
     model, raw_data, idx, vars = build_milp_model(test_case)
     
-    print("Model built successfully! Hard + S1/S2/S3 soft constraints loaded.")
+    # [Revision 1] Update print prompt to include S4
+    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4 soft constraints loaded.")
     print(f"Total variables count: {model.numVariables()}")
     print(f"Total constraints count: {model.numConstraints()}")
 
-    # Solve model with CBC (no incompatible parameters)
-    solver = pulp.PULP_CBC_CMD(msg=0)
+    # Record solve start time
+    start_time = time.time()
+
+    # [Revision 2] Add a 120-second timeout limit for solving to prevent freezing
+    solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=120)
     model.solve(solver)
 
+    solve_time = round(time.time() - start_time, 2)
     print(f"\nSolver Status: {pulp.LpStatus[model.status]}")
-    print(f"Global minimal total soft penalty: {pulp.value(model.objective)}")
+    print(f"Solve Time: {solve_time} seconds")
+    print(f"Global minimal total soft penalty: {pulp.value(model.objective):.2f}")
 
     # Export structured schedule JSON only if optimal solution exists
     if pulp.LpStatus[model.status] == "Optimal":
@@ -93,7 +99,7 @@ if __name__ == "__main__":
 
         # Summarize total penalty cost
         total_cost = pulp.value(model.objective)
-        output_sol["costs"] = [f"Total Cost: {total_cost:.1f}"]
+        output_sol["costs"] = [f"Total Cost: {total_cost:.2f}"]
 
         # Generate unique filename with timestamp to avoid overwriting old results
         time_stamp = time.strftime("%Y%m%d_%H%M%S")
