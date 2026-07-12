@@ -16,18 +16,18 @@ import pulp
 if __name__ == "__main__":
     # Config test case name, easy to switch datasets
     test_case = "test01"
-    # Build full model (Hard H1-H8 + S1/S2/S3/S4 soft)
+    # Build full model (Hard H1-H8 + S1/S2/S3/S4/S5 soft)
     model, raw_data, idx, vars = build_milp_model(test_case)
     
-    # [Revision 1] Update print prompt to include S4
-    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4 soft constraints loaded.")
+    # Update print prompt to include S5
+    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4/S5 soft constraints loaded.")
     print(f"Total variables count: {model.numVariables()}")
     print(f"Total constraints count: {model.numConstraints()}")
 
     # Record solve start time
     start_time = time.time()
 
-    # [Revision 2] Add a 120-second timeout limit for solving to prevent freezing
+    # 120-second timeout limit for solving to prevent freezing
     solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=120)
     model.solve(solver)
 
