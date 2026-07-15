@@ -1,5 +1,8 @@
 import sys
 import os
+import json
+import pulp
+
 # Locate the project root directory IHTC_Summer_Project
 current_file = os.path.abspath(__file__)
 # Current file path src/model.py, 
@@ -8,10 +11,6 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(current_file), "../"
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-
-import json
-import os
-import pulp
 
 # Uniformly import all hard constraint construction functions 
 # (read from hard_constraints)
@@ -24,13 +23,15 @@ from src.hard_constraints.h6_admit_window import add_h6_constraint
 from src.hard_constraints.h7_room_capacity import add_h7_constraint
 from src.hard_constraints.h8_nurse_room_shift import add_h8_constraint
 
-# ========== Import all soft constraint modeling functions (S1~S6) ==========
+# ========== Import all soft constraint modeling functions (S1~S7) ==========
 from src.soft_constraints.s1_age_gap import add_s1_age_gap_penalty
 from src.soft_constraints.s2_nurse_skill_shortage import add_s2_nurse_skill_penalty
 from src.soft_constraints.s3_nurse_continuity import add_s3_care_continuity_penalty
 from src.soft_constraints.s4_max_workload import add_s4_max_workload_penalty
 from src.soft_constraints.s5_open_ot import add_s5_open_ot_penalty
 from src.soft_constraints.s6_surgeon_transfer import add_s6_surgeon_transfer_penalty
+# 新增S7导入
+from src.soft_constraints.s7_admission_delay import add_s7_admission_delay_penalty
 
 
 def load_instance(instance_name: str) -> dict:
@@ -87,7 +88,6 @@ def build_milp_model(instance_name: str):
     surgeon_ids = [s["id"] for s in surgeons]
     ot_ids = [ot["id"] for ot in ots]
     day_range = list(range(total_days))
-    shift_list = ["early", "late", "night"]
 
     # Pre-build room capacity dict to avoid repeated loop lookup in H8
     room_cap_dict = {r["id"]: r["capacity"] for r in rooms}
@@ -120,7 +120,7 @@ def build_milp_model(instance_name: str):
 
     # -------------------------- Pack index & variable dict FIRST --------------------------
     # Revise the key to be unified as shift_types 
-    # to match the codes of S1/S2/S3/S4/S5/S6 and avoid KeyError
+    # to match the codes of S1/S2/S3/S4/S5/S6/S7 and avoid KeyError
     index_sets = {
         "nurse_ids": nurse_ids,
         "patient_ids": patient_ids,
@@ -128,7 +128,9 @@ def build_milp_model(instance_name: str):
         "surgeon_ids": surgeon_ids,
         "ot_ids": ot_ids,
         "day_range": day_range,
-        "shift_types": shift_list
+        "shift_types": shift_list,
+        "room_cap_dict": room_cap_dict,
+        "penalty_weights": weights
     }
     var_dict = {
         "x_nurse_room_shift": x_nurse_room,  # 同步所有软约束变量key
@@ -174,9 +176,13 @@ def build_milp_model(instance_name: str):
     s6_pen = add_s6_surgeon_transfer_penalty(model, data, index_sets, var_dict)
     total_penalty += s6_pen
 
-    # S7~S8 reserved insertion position
-    # s7_pen = add_s7_xxx_penalty(model, data, index_sets, var_dict)
-    # total_penalty += s7_pen
+    # ========== New S7 Admission Delay Penalty ==========
+    s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
+    total_penalty += s7_pen
+
+    # S8 reserved insertion position
+    # s8_pen = add_s8_xxx_penalty(model, data, index_sets, var_dict)
+    # total_penalty += s8_pen
 
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 

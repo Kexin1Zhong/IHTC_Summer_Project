@@ -4,17 +4,18 @@ def add_s6_surgeon_transfer_penalty(model: pulp.LpProblem, data: dict, index_set
     """
     S6 Surgeon transfer Soft Constraint
     Rule: Minimize number of distinct OTs assigned to a surgeon on each working day
-    Penalty = count of different OTs used by surgeon per day × weight
+    Penalty = (distinct OT count per surgeon per day - 1) × weight
+    Only penalize when surgeon uses ≥2 different OTs in one day
     Weight key: surgeon_transfer
     """
     # Unpack index sets
     surgeon_ids = index_sets["surgeon_ids"]
     ot_ids = index_sets["ot_ids"]
     day_range = index_sets["day_range"]
+    penalty_weights = index_sets["penalty_weights"]
 
-    # Raw weight
-    weight_s6 = data["weights"]["surgeon_transfer"]
-    big_m_ot = len(ot_ids)
+    # Fetch penalty weight from unified index set
+    weight_s6 = penalty_weights["surgeon_transfer"]
 
     # Core variable: surgeon-OT daily assignment
     ot_surg_assign = var_dict["ot_surg_assign"]
@@ -25,18 +26,20 @@ def add_s6_surgeon_transfer_penalty(model: pulp.LpProblem, data: dict, index_set
         (surgeon_ids, ot_ids, day_range),
         cat=pulp.LpBinary
     )
-    total_s6_penalty = 0
+    total_s6_penalty = pulp.LpAffineExpression()
 
     # Loop surgeon → day → OT
     for sur in surgeon_ids:
         for d in day_range:
-            daily_distinct_ot = 0
-            for tid in ot_ids:
-                # If surgeon assigned to OT on day d → mark OT as used
-                model += sur_ot_used[sur][tid][d] >= ot_surg_assign[sur][tid][d], f"S6_s{sur}_ot{tid}_d{d}_used"
-                daily_distinct_ot += sur_ot_used[sur][tid][d]
+            daily_distinct_ot = pulp.LpAffineExpression()
+            for otid in ot_ids:
+                # Two-way bound to lock sur_ot_used exactly equal to assignment
+                model += sur_ot_used[sur][otid][d] >= ot_surg_assign[sur][otid][d], f"S6_s{sur}_ot{otid}_d{d}_lb"
+                model += sur_ot_used[sur][otid][d] <= ot_surg_assign[sur][otid][d], f"S6_s{sur}_ot{otid}_d{d}_ub"
+                daily_distinct_ot += sur_ot_used[sur][otid][d]
 
-            # Accumulate transfer penalty for this surgeon-day
-            total_s6_penalty += weight_s6 * daily_distinct_ot
+            # Key fix: subtract 1, only penalize extra OT rooms
+            penalty_per_day = weight_s6 * (daily_distinct_ot - 1)
+            total_s6_penalty += penalty_per_day
 
     return total_s6_penalty

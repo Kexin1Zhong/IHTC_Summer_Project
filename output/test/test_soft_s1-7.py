@@ -16,11 +16,11 @@ import pulp
 if __name__ == "__main__":
     # Config test case name, easy to switch datasets
     test_case = "test01"
-    # Build full model (Hard H1-H8 + S1/S2/S3/S4/S5/S6 soft)
+    # Build full model (Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7 soft)
     model, raw_data, idx, vars = build_milp_model(test_case)
     
-    # Update print prompt to include S6
-    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4/S5/S6 soft constraints loaded.")
+    # Update print prompt to include S7
+    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7 soft constraints loaded.")
     print(f"Total variables count: {model.numVariables()}")
     print(f"Total constraints count: {model.numConstraints()}")
 
