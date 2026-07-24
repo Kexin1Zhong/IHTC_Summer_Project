@@ -44,7 +44,7 @@ def build_milp_model(instance_name: str):
     :param instance_name: target test case name
     :return: model, raw_data, index_sets, var_dict, s1_pen, s2_pen, s3_pen, s4_pen, s5_pen, s6_pen, s7_pen, s8_pen
     """
-    # All constraint imports inside function to avoid circular import
+    # All constraint imports inside function, avoid circular import risk
     from src.hard_constraints.h1_gender_mix import add_h1_constraint
     from src.hard_constraints.h2_incompatible_room import add_h2_constraint
     from src.hard_constraints.h3_surgeon_overtime import add_h3_constraint
@@ -68,7 +68,7 @@ def build_milp_model(instance_name: str):
     patients, nurses, total_days, shift_list, rooms, surgeons, ots, weights = extract_basic_info(data)
 
     # Create minimization MILP model (minimize total soft constraint penalty)
-    model = pulp.LpProblem(f"IHTC_Schedule_{instance_name}", pulp.LpMinimize)
+    model = pulp.LpProblem("HospitalResourceOptimisation", pulp.LpMinimize)
 
     # -------------------------- Index Sets Definition --------------------------
     nurse_ids = [n["id"] for n in nurses]
@@ -147,6 +147,17 @@ def build_milp_model(instance_name: str):
 
     total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
+
+    # 🧪 Debug print, placed before return
+    print("==== DEBUG soft penalty expressions loaded ====")
+    print("s1_pen:", s1_pen)
+    print("s2_pen:", s2_pen)
+    print("s3_pen:", s3_pen)
+    print("s4_pen:", s4_pen)
+    print("s5_pen:", s5_pen)
+    print("s6_pen:", s6_pen)
+    print("s7_pen:", s7_pen)
+    print("s8_pen:", s8_pen)
 
     # Return extra 8 soft expressions for itemized cost output
     return model, data, index_sets, var_dict, s1_pen, s2_pen, s3_pen, s4_pen, s5_pen, s6_pen, s7_pen, s8_pen
