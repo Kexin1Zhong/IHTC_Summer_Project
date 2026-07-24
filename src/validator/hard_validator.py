@@ -59,7 +59,9 @@ if __name__ == "__main__":
     # Independent Operation Test Entry: Load test01 case, 
     # solve and conduct full verification
     from src.model import build_milp_model
-    model, data, index_sets, var_dict = build_milp_model("test01")
+    ret = build_milp_model("test01")
+    model, data, index_sets, var_dict = ret[0], ret[1], ret[2], ret[3]
+
     # Open the solver log to facilitate troubleshooting unsolvable cases or freezes
     model.solve(pulp.PULP_CBC_CMD(msg=1, timeLimit=120))
     solver_status = pulp.LpStatus[model.status]
