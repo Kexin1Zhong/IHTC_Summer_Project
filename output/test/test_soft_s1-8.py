@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import time
+import pulp
 
 # Get the absolute path of the current test file
 current_test_file = os.path.abspath(__file__)
@@ -11,23 +12,16 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from src.model import build_milp_model
-import pulp
 
 if __name__ == "__main__":
-    # Config test case name, easy to switch datasets
     test_case = "test01"
-    # Build full model (Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7/S8 soft)
-    model, raw_data, idx, vars = build_milp_model(test_case)
-
-    # Update print prompt to include S8
+    model, raw_data, idx, vars, s1_expr, s2_expr, s3_expr, s4_expr, s5_expr, s6_expr, s7_expr, s8_expr = build_milp_model(test_case)
+    
     print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7/S8 soft constraints loaded.")
     print(f"Total variables count: {model.numVariables()}")
     print(f"Total constraints count: {model.numConstraints()}")
 
-    # Record solve start time
     start_time = time.time()
-
-    # 120-second timeout limit for solving to prevent freezing
     solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=120)
     model.solve(solver)
 
@@ -36,12 +30,10 @@ if __name__ == "__main__":
     print(f"Solve Time: {solve_time} seconds")
     print(f"Global minimal total soft penalty: {pulp.value(model.objective):.2f}")
 
-    # Export structured schedule JSON only if optimal solution exists
     if pulp.LpStatus[model.status] == "Optimal":
-        # Unpack core variables & index data
         y = vars["y_patient_room"]
         x = vars["x_nurse_room_shift"]
-        admit = vars["admit_var"]
+        admit_var = vars["admit_var"]
         patient_ids = idx["patient_ids"]
         nurse_ids = idx["nurse_ids"]
         room_ids = idx["room_ids"]
@@ -61,13 +53,11 @@ if __name__ == "__main__":
             pid = p["id"]
             sol_p = {"id": pid}
             admit_day = "none"
-            # Locate patient's admission day
             for d in day_range:
-                if pulp.value(admit[pid][d]) > 0.5:
+                if pulp.value(admit_var[pid][d]) > 0.5:
                     admit_day = d
                     break
             sol_p["admission_day"] = str(admit_day)
-
             assign_room = None
             if admit_day != "none":
                 d0 = int(admit_day)
@@ -79,8 +69,8 @@ if __name__ == "__main__":
                 sol_p["room"] = assign_room
             output_sol["patients"].append(sol_p)
 
-        # Fill all nurse daily shift room assignments
-        for n in raw_nurses:
+        # Fill nurse assignments
+        for n in raw_data["nurses"]:
             nid = n["id"]
             sol_n = {"id": nid, "assignments": []}
             for d in day_range:
@@ -96,16 +86,27 @@ if __name__ == "__main__":
                     })
             output_sol["nurses"].append(sol_n)
 
-        # Summarize total penalty cost
-        total_cost = pulp.value(model.objective)
-        output_sol["costs"] = [f"Total Cost: {total_cost:.2f}"]
+        # Read each soft cost breakdown (ONLY use precomputed expressions, NO function calls)
+        s1 = pulp.value(s1_expr)
+        s2 = pulp.value(s2_expr)
+        s3 = pulp.value(s3_expr)
+        s4 = pulp.value(s4_expr)
+        s5 = pulp.value(s5_expr)
+        s6 = pulp.value(s6_expr)
+        s7 = pulp.value(s7_expr)
+        s8 = pulp.value(s8_expr)
+        total = pulp.value(model.objective)
 
-        # Generate unique filename with timestamp to avoid overwriting old results
+        cost_str = (
+            f"Cost: {total:.0f}, Unscheduled: {s8:.0f}, Delay: {s7:.0f}, OpenOT: {s5:.0f}, "
+            f"AgeMix: {s1:.0f}, Skill: {s2:.0f}, Excess: {s4:.0f}, Continuity: {s3:.0f}, SurgeonTransfer: {s6:.0f}"
+        )
+        output_sol["costs"] = [cost_str]
+
         time_stamp = time.strftime("%Y%m%d_%H%M%S")
         out_file_name = f"solution_{test_case}_{time_stamp}.json"
         out_file_path = os.path.join(project_root, "output", "test", out_file_name)
 
-        # Write schedule data into independent json file
         with open(out_file_path, "w", encoding="utf-8") as f:
             json.dump(output_sol, f, indent=2, ensure_ascii=False)
 

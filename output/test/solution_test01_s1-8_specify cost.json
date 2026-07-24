@@ -9246,6 +9246,6 @@
     }
   ],
   "costs": [
-    "Cost: 1660"
+    "Cost: 1660, Unscheduled: 1200, Delay: 460, OpenOT: 0, AgeMix: 0, Skill: 0, Excess: 0, Continuity: 0, SurgeonTransfer: 0"
   ]
 }
