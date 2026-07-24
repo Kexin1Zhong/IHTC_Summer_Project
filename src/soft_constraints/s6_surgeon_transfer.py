@@ -4,7 +4,7 @@ def add_s6_surgeon_transfer_penalty(model: pulp.LpProblem, data: dict, index_set
     """
     S6 Surgeon transfer Soft Constraint
     Rule: Minimize number of distinct OTs assigned to a surgeon on each working day
-    Penalty = (distinct OT count per surgeon per day - 1) × weight
+    Penalty = max(0, distinct OT count per surgeon per day - 1) × weight
     Only penalize when surgeon uses ≥2 different OTs in one day
     Weight key: surgeon_transfer
     """
@@ -12,10 +12,10 @@ def add_s6_surgeon_transfer_penalty(model: pulp.LpProblem, data: dict, index_set
     surgeon_ids = index_sets["surgeon_ids"]
     ot_ids = index_sets["ot_ids"]
     day_range = index_sets["day_range"]
-    penalty_weights = index_sets["penalty_weights"]
 
-    # Fetch penalty weight from unified index set
-    weight_s6 = penalty_weights["surgeon_transfer"]
+    # ✅ Fix 1: Read weights from data and stop accessing index_sets["penalty_weights"]
+    weight_s6 = data["weights"]["surgeon_transfer"]
+    max_ot = len(ot_ids)
 
     # Core variable: surgeon-OT daily assignment
     ot_surg_assign = var_dict["ot_surg_assign"]
@@ -33,13 +33,15 @@ def add_s6_surgeon_transfer_penalty(model: pulp.LpProblem, data: dict, index_set
         for d in day_range:
             daily_distinct_ot = pulp.LpAffineExpression()
             for otid in ot_ids:
-                # Two-way bound to lock sur_ot_used exactly equal to assignment
                 model += sur_ot_used[sur][otid][d] >= ot_surg_assign[sur][otid][d], f"S6_s{sur}_ot{otid}_d{d}_lb"
                 model += sur_ot_used[sur][otid][d] <= ot_surg_assign[sur][otid][d], f"S6_s{sur}_ot{otid}_d{d}_ub"
                 daily_distinct_ot += sur_ot_used[sur][otid][d]
 
-            # Key fix: subtract 1, only penalize extra OT rooms
-            penalty_per_day = weight_s6 * (daily_distinct_ot - 1)
-            total_s6_penalty += penalty_per_day
+            # ✅ Fix 2: Linearize max(0, distinct-1) to avoid negative penalties
+            transfer_penalty = pulp.LpVariable(f"s6_transfer_s{sur}_d{d}", lowBound=0, cat=pulp.LpContinuous)
+            model += transfer_penalty >= daily_distinct_ot - 1
+            model += transfer_penalty <= max_ot
+
+            total_s6_penalty += weight_s6 * transfer_penalty
 
     return total_s6_penalty

@@ -16,11 +16,11 @@ import pulp
 if __name__ == "__main__":
     # Config test case name, easy to switch datasets
     test_case = "test01"
-    # Build full model (Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7 soft)
+    # Build full model (Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7/S8 soft)
     model, raw_data, idx, vars = build_milp_model(test_case)
-    
-    # Update print prompt to include S7
-    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7 soft constraints loaded.")
+
+    # Update print prompt to include S8
+    print("Model built successfully! Hard H1-H8 + S1/S2/S3/S4/S5/S6/S7/S8 soft constraints loaded.")
     print(f"Total variables count: {model.numVariables()}")
     print(f"Total constraints count: {model.numConstraints()}")
 
@@ -77,7 +77,6 @@ if __name__ == "__main__":
                         break
             if assign_room is not None:
                 sol_p["room"] = assign_room
-            # 移除 p["operating_theater"] 读取，避免KeyError（你的数据集无此字段）
             output_sol["patients"].append(sol_p)
 
         # Fill all nurse daily shift room assignments
