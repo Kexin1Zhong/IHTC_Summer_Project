@@ -14,12 +14,9 @@ def add_s7_admission_delay_penalty(model: pulp.LpProblem, data: dict, index_sets
     # Raw data & weight
     patients = data["patients"]
     weight_s7 = data["weights"]["patient_delay"]
-    big_m_days = max(day_range) + 10  # Maximum Day Boundary of Big-M
+    big_m_days = max(day_range) + 10
 
-    # Core variable: admit[pid][d] binary flag for patient admission day
     admit = var_dict["admit_var"]
-
-    # Pre-cache each patient's earliest allowed admission day
     patient_release_day = {p["id"]: p["surgery_release_day"] for p in patients}
 
     # Aux continuous variable: delay penalty per patient
@@ -29,20 +26,31 @@ def add_s7_admission_delay_penalty(model: pulp.LpProblem, data: dict, index_sets
         lowBound=0,
         cat=pulp.LpContinuous
     )
+    # Binary flag: 1 if patient has admission delay (actual > release)
+    has_delay_flag = pulp.LpVariable.dicts(
+        "s7_has_delay_flag",
+        patient_ids,
+        cat=pulp.LpBinary
+    )
+
     total_s7_penalty = 0
 
     for p in patients:
         pid = p["id"]
         release_d = patient_release_day[pid]
-        # Linear expression for actual admission day value: sum(d * admit[pid][d])
         actual_admit_day = pulp.lpSum([d * admit[pid][d] for d in day_range])
         delay_gap = actual_admit_day - release_d
-
-        # Linearize max(0, delay_gap)
         delay_var = patient_delay_penalty[pid]
+        z = has_delay_flag[pid]
+
+        # 1) delay >= gap
         model += delay_var >= delay_gap
-        model += delay_var <= delay_gap + big_m_days
-        model += delay_var <= big_m_days
+        # 2) delay >= 0
+        model += delay_var >= 0
+        # 3) If no delay (z=0): delay <= 0
+        model += delay_var <= delay_gap + big_m_days * z
+        # 4) Upper bound
+        model += delay_var <= big_m_days * z
 
         total_s7_penalty += weight_s7 * delay_var
 

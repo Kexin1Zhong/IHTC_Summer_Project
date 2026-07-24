@@ -30,6 +30,18 @@ if __name__ == "__main__":
     print(f"Solve Time: {solve_time} seconds")
     print(f"Global minimal total soft penalty: {pulp.value(model.objective):.2f}")
 
+    # ===== 新增：打印各分项代价 =====
+    print("\n==== DEBUG: Each soft constraint penalty value ====")
+    print(f"s1(AgeMix): {pulp.value(s1_expr):.2f}")
+    print(f"s2(Skill): {pulp.value(s2_expr):.2f}")
+    print(f"s3(Continuity): {pulp.value(s3_expr):.2f}")
+    print(f"s4(Excess): {pulp.value(s4_expr):.2f}")
+    print(f"s5(OpenOT): {pulp.value(s5_expr):.2f}")
+    print(f"s6(SurgeonTransfer): {pulp.value(s6_expr):.2f}")
+    print(f"s7(Delay): {pulp.value(s7_expr):.2f}")
+    print(f"s8(Unscheduled): {pulp.value(s8_expr):.2f}")
+    print("==================================================\n")
+
     if pulp.LpStatus[model.status] == "Optimal":
         y = vars["y_patient_room"]
         x = vars["x_nurse_room_shift"]
@@ -111,7 +123,7 @@ if __name__ == "__main__":
             json.dump(output_sol, f, indent=2, ensure_ascii=False)
 
         print(f"\n✅ Unique schedule file saved successfully:")
-        print(f"File Path: {out_file_path}")
+        print(f"File Path: {out_file_name}")
         print(f"File Name: {out_file_name}")
 
     else:
