@@ -1,83 +1,71 @@
 import pulp
 
-def add_s3_care_continuity_penalty(model: pulp.LpProblem, data: dict, index_sets: dict, var_dict: dict) -> pulp.LpAffineExpression:
-    """
-    S3 Continuity of care soft constraint
-    Minimize distinct nurses caring for each patient over their stay
-    Base minimum distinct nurses per patient = 3, penalty = max(0, distinct_nurse - 3) * weight
-    Args:
-        model: pulp MILP model instance
-        data: raw input json dataset
-        index_sets: pre-defined index set dict
-        var_dict: decision variables dict (y_patient_room, x_nurse_room_shift required)
-    Return:
-        pulp.LpAffineExpression: total weighted penalty expression of S3 for objective
-    """
-    # Unpack index sets
+def add_s3_care_continuity_penalty(model: pulp.LpProblem, data: dict, index_sets, var_dict) -> pulp.LpAffineExpression:
+    # 索引修正
     patient_ids = index_sets["patient_ids"]
     nurse_ids = index_sets["nurse_ids"]
     room_ids = index_sets["room_ids"]
     day_range = index_sets["day_range"]
-    shift_types = index_sets["shift_types"]
+    shift_types = index_sets["room_ids"]
 
-    # Raw data & weight
     patients = data["patients"]
     nurses = data["nurses"]
     weight_s3 = data["weights"]["continuity_of_care"]
 
-    # Core decision variables
     y = var_dict["y_patient_room"]
     x = var_dict["x_nurse_room_shift"]
 
-    # Aux 1: Binary flag assign_p_n[p][n] = 1 if nurse n ever cares for patient p
+    # 病人p是否被护士n照看过
     assign_p_n = pulp.LpVariable.dicts(
         "s3_assign_patient_nurse",
         (patient_ids, nurse_ids),
         cat=pulp.LpBinary
     )
-
-    # Aux 2: Count distinct nurses for each patient p
+    # 看护该病人的护士总数
     distinct_nurse_cnt = pulp.LpVariable.dicts(
         "s3_distinct_nurse_count",
         patient_ids,
-        lowBound=0,
-        cat=pulp.LpContinuous
+        lowBound=0, cat=pulp.LpInteger
     )
-
-    # Aux 3: Continuity penalty for excess nurses over minimum 3
+    # 超额护士惩罚
     pen_continuity = pulp.LpVariable.dicts(
         "s3_pen_continuity_excess",
         patient_ids,
-        lowBound=0,
-        cat=pulp.LpContinuous
+        lowBound=0, cat=pulp.LpContinuous
     )
 
-    s3_total_expr = 0
+    s3_total_expr = pulp.LpAffineExpression()
 
-    # Step1: Linearize assign_p_n[p][n] = 1 if p and n overlap on any room-day-shift
+    # 第一步：线性化 病人+护士同时出现则assign=1
     for p in patients:
         pid = p["id"]
+        adm_day = p.get("admission_day", "none")
+        if adm_day == "none":
+            continue
         for n in nurses:
             nid = n["id"]
-            # If any room/day/shift has y[p][r][d] & x[n][r][d][s] = 1, assign_p_n = 1
+            # 只要任意房间/天/班次同时有病人、护士，assign至少1
             for rid in room_ids:
                 for d in day_range:
                     for s in shift_types:
-                        model += assign_p_n[pid][nid] >= y[pid][rid][d] + x[nid][rid][d][s] - 1, f"S3_flag_p{pid}_n{nid}_r{rid}_d{d}_{s}"
+                        model += assign_p_n[pid][nid] >= y[pid][rid][d] + x[nid][rid][d] - 1, \
+                            f"S3_link_{pid}_{nid}_{rid}_{d}_{s}"
+            # 修复关键BUG：二维索引 [pid][nid]
+            model += assign_p_n[pid][nid] <= 1, f"S3_binlimit_{pid}_{nid}"
 
-    # Step2: Sum assign flags to get total distinct nurses per patient
+    # 第二步：统计每个病人总看护护士数量
     for p in patients:
         pid = p["id"]
-        sum_nurse_flags = 0
+        adm_day = p.get("admission_day", "none")
+        if adm_day == "none":
+            continue
+        total_nurse = 0
         for n in nurses:
             nid = n["id"]
-            sum_nurse_flags += assign_p_n[pid][nid]
-        model += distinct_nurse_cnt[pid] == sum_nurse_flags, f"S3_count_sum_p{pid}"
-
-        # Step3: Penalty = max(0, distinct_nurse_cnt - 3)
-        model += pen_continuity[pid] >= distinct_nurse_cnt[pid] - 3, f"S3_penalty_min3_p{pid}"
-
-        # Step4: Accumulate weighted penalty
-        s3_total_expr += weight_s3 * pen_continuity[pid]
+            total_nurse += assign_p_n[pid][nid]
+        model += distinct_nurse_cnt[pid] == total_nurse, f"S3_sum_{pid}"
+        # 超过3名护士产生惩罚
+        model += pen_continuity[pid] >= distinct_nurse_cnt[pid] - 3, f"S3_pen_{pid}"
+        s3_total_expr += weight_s3 * pen_continuity
 
     return s3_total_expr
