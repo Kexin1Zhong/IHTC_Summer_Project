@@ -77,7 +77,8 @@ def build_milp_model(instance_name: str):
     surgeon_ids = [s["id"] for s in surgeons]
     ot_ids = [ot["id"] for ot in ots]
     day_range = list(range(total_days))
-    shift_list = ["early", "late", "night"]
+    # 【重要修复】移除强行覆盖班次代码，直接使用数据集原生shift_list
+    # shift_list = ["early", "late", "night"]  # 已删除！
 
     # Pre-build room capacity dict to avoid repeated loop lookup in H8
     room_cap_dict = {r["id"]: r["capacity"] for r in rooms}
@@ -148,16 +149,9 @@ def build_milp_model(instance_name: str):
     total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 
-    # 🧪 Debug print, placed before return
-    print("==== DEBUG soft penalty expressions loaded ====")
-    print("s1_pen:", s1_pen)
-    print("s2_pen:", s2_pen)
-    print("s3_pen:", s3_pen)
-    print("s4_pen:", s4_pen)
-    print("s5_pen:", s5_pen)
-    print("s6_pen:", s6_pen)
-    print("s7_pen:", s7_pen)
-    print("s8_pen:", s8_pen)
+    # Print model scale for debugging
+    print(f"✅ Model constructed. Total variables: {len(model.variables())}")
+    print(f"✅ Total constraints: {len(model.constraints)}")
 
-    # Return extra 8 soft expressions for itemized cost output
+    # Return order unchanged, compatible with your test script
     return model, data, index_sets, var_dict, s1_pen, s2_pen, s3_pen, s4_pen, s5_pen, s6_pen, s7_pen, s8_pen
