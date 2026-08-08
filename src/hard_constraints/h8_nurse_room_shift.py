@@ -45,7 +45,7 @@ def add_h8_constraint(model, data, index_sets, var_dict):
 
 def validate_h8_solution(sol_data, index_sets, var_dict):
     """
-    H8 Check Function: 
+    H8 Check Function:
     Verify that nurses are assigned to every shift in occupied rooms
     """
     patients = sol_data["patients"]
@@ -53,33 +53,27 @@ def validate_h8_solution(sol_data, index_sets, var_dict):
     nurse_ids = index_sets["nurse_ids"]
     room_ids = index_sets["room_ids"]
     day_range = index_sets["day_range"]
-    # Only modify the key here: shifts → shift_types
     shift_list = index_sets["shift_types"]
     y = var_dict["y_patient_room"]
-    # Fix Key Error: x_nurse_room → x_nurse_room_shift
     x = var_dict["x_nurse_room_shift"]
 
     h8_violation_count = 0
 
     for r in room_ids:
         for d in day_range:
-            # Count whether the room is occupied on the day
             total_p = 0.0
             for p in patients:
                 pid = p["id"]
                 total_p += pulp.value(y[pid][r][d])
-            # Room is empty, skip verification
             if total_p < 1e-6:
                 continue
-            # The room is occupied; 
-            # check nurses across all shifts
             for s in shift_list:
                 nurse_sum = 0.0
                 for n in nurse_ids:
                     nurse_sum += pulp.value(x[n][r][d][s])
                 if nurse_sum < 1e-6:
                     h8_violation_count += 1
-                    print(f"H8 VIOLATION: Room {r}, Day {d}, Shift {s} has patients but no assigned nurse")
+                    # 删掉此处print，不再逐条刷屏
 
     if h8_violation_count == 0:
         print("✅ H8 Test Passed: All occupied rooms have nurse coverage for every shift")

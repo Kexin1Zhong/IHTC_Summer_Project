@@ -77,8 +77,7 @@ def build_milp_model(instance_name: str):
     surgeon_ids = [s["id"] for s in surgeons]
     ot_ids = [ot["id"] for ot in ots]
     day_range = list(range(total_days))
-    # 【重要修复】移除强行覆盖班次代码，直接使用数据集原生shift_list
-    # shift_list = ["early", "late", "night"]  # 已删除！
+    max_day = max(day_range)
 
     # Pre-build room capacity dict to avoid repeated loop lookup in H8
     room_cap_dict = {r["id"]: r["capacity"] for r in rooms}
@@ -109,6 +108,19 @@ def build_milp_model(instance_name: str):
         cat=pulp.LpBinary
     )
 
+    # ====================== 新增：出院溢出松弛变量 核心修复 ======================
+    # 非负连续松弛，承接入院+LOS超出总天数部分
+    slack_overflow = pulp.LpVariable.dicts(
+        "overflow_slack",
+        patient_ids,
+        lowBound=0,
+        cat=pulp.LpContinuous
+    )
+    # 溢出惩罚权重，数值越大越不允许超限，推荐500~1200
+    overflow_weight = weights.get("overflow_penalty", 600)
+    overflow_total_penalty = pulp.lpSum([overflow_weight * slack_overflow[pid] for pid in patient_ids])
+    # ==========================================================================
+
     # -------------------------- Pack index & variable dict --------------------------
     index_sets = {
         "nurse_ids": nurse_ids,
@@ -136,6 +148,15 @@ def build_milp_model(instance_name: str):
     add_h7_constraint(model, data, index_sets, var_dict)
     add_h8_constraint(model, data, index_sets, var_dict)
 
+    # ========== 为每个病人添加松弛容错约束 ==========
+    for p in patients:
+        pid = p["id"]
+        los = p["length_of_stay"]
+        admit_day_expr = pulp.lpSum([d * admit_var[pid][d] for d in day_range])
+        # 原硬约束：admit_day + los <= total_days
+        # 松弛改写：admit_day + los <= total_days + slack_overflow[pid]
+        model += admit_day_expr + los <= total_days + slack_overflow[pid], f"OverflowLimit_{pid}"
+
     # -------------------------- Soft Constraints & Objective --------------------------
     s1_pen = add_s1_age_gap_penalty(model, data, index_sets, var_dict)
     s2_pen = add_s2_nurse_skill_penalty(model, data, index_sets, var_dict)
@@ -146,7 +167,8 @@ def build_milp_model(instance_name: str):
     s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
     s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict)
 
-    total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen
+    # 目标函数并入溢出惩罚
+    total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
     model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 
     # Print model scale for debugging
