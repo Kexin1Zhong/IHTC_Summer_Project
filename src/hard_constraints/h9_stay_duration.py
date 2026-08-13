@@ -1,33 +1,59 @@
 import pulp
 
+#def add_h9_constraint(model, data, index_sets, var_dict):
+    #"""
+    #H9 Stay‑duration linking hard constraint (not part of original H1‑H8, required business linking rule)
+    #Logic:
+        #If patient p is admitted on day d (admit_var[p][d]==1),
+        #then for every offset k in [0, length_of_stay‑1], on day (d+k):
+            #patient p must occupy at least one room (sum over rooms of y_patient_room >= 1)
+        #Only generate constraints for admission day d where full stay period lies within simulation horizon.
+    #"""
+    #patients = data["patients"]
+    #day_range = index_sets["day_range"]
+    #room_ids = index_sets["room_ids"]
+
+    #for p in patients:
+        #pid = p["id"]
+        #los = p["length_of_stay"]
+        #for d in day_range:
+            #last_stay_day = d + los - 1
+            # Skip this d if full stay would go outside simulation time window
+            #if last_stay_day not in day_range:
+                #continue
+            #for k in range(los):
+                #day_stay = d + k
+                #model += (
+                    #pulp.lpSum([var_dict["y_patient_room"][pid][rid][day_stay] for rid in room_ids])
+                    #>= var_dict["admit_var"][pid][d],
+                    #f"H9_stay_p{pid}_admit{d}_stayday{day_stay}"
+                #)
+
 def add_h9_constraint(model, data, index_sets, var_dict):
-    """
-    H9 Stay‑duration linking hard constraint (not part of original H1‑H8, required business linking rule)
-    Logic:
-        If patient p is admitted on day d (admit_var[p][d]==1),
-        then for every offset k in [0, length_of_stay‑1], on day (d+k):
-            patient p must occupy at least one room (sum over rooms of y_patient_room >= 1)
-        Only generate constraints for admission day d where full stay period lies within simulation horizon.
-    """
     patients = data["patients"]
     day_range = index_sets["day_range"]
     room_ids = index_sets["room_ids"]
 
+    total_generated = 0
+
     for p in patients:
         pid = p["id"]
         los = p["length_of_stay"]
+        patient_cnt = 0
         for d in day_range:
-            last_stay_day = d + los - 1
-            # Skip this d if full stay would go outside simulation time window
-            if last_stay_day not in day_range:
-                continue
             for k in range(los):
                 day_stay = d + k
+                if day_stay not in day_range:
+                    continue
+                patient_cnt += 1
+                total_generated +=1
                 model += (
                     pulp.lpSum([var_dict["y_patient_room"][pid][rid][day_stay] for rid in room_ids])
                     >= var_dict["admit_var"][pid][d],
-                    f"H9_stay_p{pid}_admit{d}_stayday{day_stay}"
+                    f"H9_stay_p{pid}_d{d}_s{day_stay}"
                 )
+        #print(f"[H9 debug] pid {pid}, los={los}, generated {patient_cnt} constraints")
+    #print(f"==== H9 total constraints generated: {total_generated} ====")
 
 
 def validate_h9_solution(sol_data, index_sets, var_dict):
