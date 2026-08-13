@@ -123,18 +123,7 @@ def build_milp_model(instance_name: str):
         cat=pulp.LpBinary
     )
 
-    # ====================== 新增：出院溢出松弛变量 核心修复 ======================
-    # 非负连续松弛，承接入院+LOS超出总天数部分
-    slack_overflow = pulp.LpVariable.dicts(
-        "overflow_slack",
-        patient_ids,
-        lowBound=0,
-        cat=pulp.LpContinuous
-    )
-    # 溢出惩罚权重，数值越大越不允许超限，推荐500~1200
-    overflow_weight = weights.get("overflow_penalty", 600)
-    overflow_total_penalty = pulp.lpSum([overflow_weight * slack_overflow[pid] for pid in patient_ids])
-    # ==========================================================================
+
 
     # -------------------------- Pack index & variable dict --------------------------
     index_sets = {
@@ -185,15 +174,6 @@ def build_milp_model(instance_name: str):
     #add_h9_constraint(model, data, index_sets, var_dict)
 #
 
-    # ========== 为每个病人添加松弛容错约束 ==========
-    for p in patients:
-        pid = p["id"]
-        los = p["length_of_stay"]
-        admit_day_expr = pulp.lpSum([d * admit_var[pid][d] for d in day_range])
-        # 原硬约束：admit_day + los <= total_days
-        # 松弛改写：admit_day + los <= total_days + slack_overflow[pid]
-        model += admit_day_expr + los <= total_days + slack_overflow[pid], f"OverflowLimit_{pid}"
-
     # -------------------------- Soft Constraints & Objective --------------------------
     if ENABLE_SOFT:
     # 二分开关：逐个打开，定位作恶的软约束
@@ -219,7 +199,7 @@ def build_milp_model(instance_name: str):
     else:
          s1_pen = s2_pen = s3_pen = s4_pen = s5_pen = s6_pen = s7_pen = s8_pen = 0
 
-    total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
+    total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen 
     model += total_penalty, "MinimizeTotalPenalty"
 
     #if ENABLE_SOFT:
