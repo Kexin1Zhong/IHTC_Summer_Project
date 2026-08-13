@@ -44,6 +44,19 @@ def build_milp_model(instance_name: str):
     :param instance_name: target test case name
     :return: model, raw_data, index_sets, var_dict, s1_pen, s2_pen, s3_pen, s4_pen, s5_pen, s6_pen, s7_pen, s8_pen
     """
+    # =====在这里最顶部加入这一组布尔开关=====
+    # -------- constraint toggle for binary search debug --------
+    ENABLE_H1 = True
+    ENABLE_H2 = True
+    ENABLE_H3 = True
+    ENABLE_H4 = True
+    ENABLE_H5 = True
+    ENABLE_H6 = True
+    ENABLE_H7 = True
+    ENABLE_H8 = True
+    ENABLE_H9 = True
+    ENABLE_SOFT = True   # 调试硬约束时置False；跑完可行性再打开True
+    # -----------------------------------------------------------
     # All constraint imports inside function, avoid circular import risk
     from src.hard_constraints.h1_gender_mix import add_h1_constraint
     from src.hard_constraints.h2_incompatible_room import add_h2_constraint
@@ -53,6 +66,8 @@ def build_milp_model(instance_name: str):
     from src.hard_constraints.h6_admit_window import add_h6_constraint
     from src.hard_constraints.h7_room_capacity import add_h7_constraint
     from src.hard_constraints.h8_nurse_room_shift import add_h8_constraint
+    from src.hard_constraints.h9_stay_duration import add_h9_constraint
+
 
     from src.soft_constraints.s1_age_gap import add_s1_age_gap_penalty
     from src.soft_constraints.s2_nurse_skill_shortage import add_s2_nurse_skill_penalty
@@ -139,14 +154,36 @@ def build_milp_model(instance_name: str):
     }
 
     # -------------------------- Hard Constraints --------------------------
-    add_h1_constraint(model, data, index_sets, var_dict)
-    add_h2_constraint(model, data, index_sets, var_dict)
-    add_h3_constraint(model, data, index_sets, var_dict)
-    add_h4_constraint(model, data, index_sets, var_dict)
-    add_h5_constraint(model, data, index_sets, var_dict)
-    add_h6_constraint(model, data, index_sets, var_dict)
-    add_h7_constraint(model, data, index_sets, var_dict)
-    add_h8_constraint(model, data, index_sets, var_dict)
+    # 到调用各个add_xxx_constraint的地方，全部包上if判断
+    if ENABLE_H1:
+        add_h1_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H2:
+        add_h2_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H3:
+        add_h3_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H4:
+        add_h4_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H5:
+        add_h5_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H6:
+        add_h6_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H7:
+        add_h7_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H8:
+        add_h8_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H9:
+        add_h9_constraint(model, data, index_sets, var_dict)
+
+    #add_h1_constraint(model, data, index_sets, var_dict)
+    #add_h2_constraint(model, data, index_sets, var_dict)
+    #add_h3_constraint(model, data, index_sets, var_dict)
+    #add_h4_constraint(model, data, index_sets, var_dict)
+    #add_h5_constraint(model, data, index_sets, var_dict)
+    #add_h6_constraint(model, data, index_sets, var_dict)
+    #add_h7_constraint(model, data, index_sets, var_dict)
+    #add_h8_constraint(model, data, index_sets, var_dict)
+    #add_h9_constraint(model, data, index_sets, var_dict)
+#
 
     # ========== 为每个病人添加松弛容错约束 ==========
     for p in patients:
@@ -158,18 +195,61 @@ def build_milp_model(instance_name: str):
         model += admit_day_expr + los <= total_days + slack_overflow[pid], f"OverflowLimit_{pid}"
 
     # -------------------------- Soft Constraints & Objective --------------------------
-    s1_pen = add_s1_age_gap_penalty(model, data, index_sets, var_dict)
-    s2_pen = add_s2_nurse_skill_penalty(model, data, index_sets, var_dict)
-    s3_pen = add_s3_care_continuity_penalty(model, data, index_sets, var_dict)
-    s4_pen = add_s4_max_workload_penalty(model, data, index_sets, var_dict)
-    s5_pen = add_s5_open_ot_penalty(model, data, index_sets, var_dict)
-    s6_pen = add_s6_surgeon_transfer_penalty(model, data, index_sets, var_dict)
-    s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
-    s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict)
+    if ENABLE_SOFT:
+    # 二分开关：逐个打开，定位作恶的软约束
+        use_s1 = True
+        use_s2 = True
+        use_s3 = True
+        use_s4 = True
+        use_s5 = True
+        use_s6 = True
+        use_s7 = True
+        use_s8 = True
+
+        s1_pen = add_s1_age_gap_penalty(model, data, index_sets, var_dict) if use_s1 else 0
+        s2_pen = add_s2_nurse_skill_penalty(model, data, index_sets, var_dict) if use_s2 else 0
+        s3_pen = add_s3_care_continuity_penalty(model, data, index_sets, var_dict) if use_s3 else 0
+        s4_pen = add_s4_max_workload_penalty(model, data, index_sets, var_dict) if use_s4 else 0
+        s5_pen = add_s5_open_ot_penalty(model, data, index_sets, var_dict) if use_s5 else 0
+        s6_pen = add_s6_surgeon_transfer_penalty(model, data, index_sets, var_dict) if use_s6 else 0
+        s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict) if use_s7 else 0
+        s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict) if use_s8 else 0
+
+        s1_pen, s2_pen, s3_pen, s4_pen, s5_pen, s6_pen, s7_pen, s8_pen = s1_pen,s2_pen,s3_pen,s4_pen,s5_pen,s6_pen,s7_pen,s8_pen
+    else:
+         s1_pen = s2_pen = s3_pen = s4_pen = s5_pen = s6_pen = s7_pen = s8_pen = 0
+
+    total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
+    model += total_penalty, "MinimizeTotalPenalty"
+
+    #if ENABLE_SOFT:
+        #s1_pen = add_s1_age_gap_penalty(model, data, index_sets, var_dict)
+        #s2_pen = add_s2_nurse_skill_penalty(model, data, index_sets, var_dict)
+        #s3_pen = add_s3_care_continuity_penalty(model, data, index_sets, var_dict)
+        #s4_pen = add_s4_max_workload_penalty(model, data, index_sets, var_dict)
+        #s5_pen = add_s5_open_ot_penalty(model, data, index_sets, var_dict)
+        #s6_pen = add_s6_surgeon_transfer_penalty(model, data, index_sets, var_dict)
+        #s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
+        #s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict)
+    #else:
+        # 软约束关闭，惩罚项赋值为0，pulp可以直接int参与lpSum
+        #s1_pen = s2_pen = s3_pen = s4_pen = s5_pen = s6_pen = s7_pen = s8_pen = 0
+
+    #total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
+    #model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
+
+    #s1_pen = add_s1_age_gap_penalty(model, data, index_sets, var_dict)
+    #s2_pen = add_s2_nurse_skill_penalty(model, data, index_sets, var_dict)
+    #s3_pen = add_s3_care_continuity_penalty(model, data, index_sets, var_dict)
+    #s4_pen = add_s4_max_workload_penalty(model, data, index_sets, var_dict)
+    #s5_pen = add_s5_open_ot_penalty(model, data, index_sets, var_dict)
+    #s6_pen = add_s6_surgeon_transfer_penalty(model, data, index_sets, var_dict)
+    #s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
+    #s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict)
 
     # 目标函数并入溢出惩罚
-    total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
-    model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
+    #total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
+    #model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 
     # Print model scale for debugging
     print(f"✅ Model constructed. Total variables: {len(model.variables())}")

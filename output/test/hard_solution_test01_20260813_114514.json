@@ -1,0 +1,261 @@
+{
+  "patients": [
+    {
+      "id": "p00",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p01",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p02",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p03",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p04",
+      "admission_day": 10,
+      "room": "r4",
+      "operating_theater": null
+    },
+    {
+      "id": "p05",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p06",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p07",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p08",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p09",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p10",
+      "admission_day": 10,
+      "room": "r0",
+      "operating_theater": null
+    },
+    {
+      "id": "p11",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p12",
+      "admission_day": 10,
+      "room": "r2",
+      "operating_theater": null
+    },
+    {
+      "id": "p13",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p14",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p15",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p16",
+      "admission_day": 1,
+      "room": "r0",
+      "operating_theater": null
+    },
+    {
+      "id": "p17",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p18",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p19",
+      "admission_day": 1,
+      "room": "r0",
+      "operating_theater": null
+    },
+    {
+      "id": "p20",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p21",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p22",
+      "admission_day": 8,
+      "room": "r0",
+      "operating_theater": null
+    },
+    {
+      "id": "p23",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p24",
+      "admission_day": 10,
+      "room": "r2",
+      "operating_theater": null
+    },
+    {
+      "id": "p25",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p26",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p27",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p28",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p29",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p30",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p31",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p32",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p33",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p34",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p35",
+      "admission_day": 7,
+      "room": "r2",
+      "operating_theater": null
+    },
+    {
+      "id": "p36",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p37",
+      "admission_day": 5,
+      "room": "r4",
+      "operating_theater": null
+    },
+    {
+      "id": "p38",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p39",
+      "admission_day": null,
+      "room": null,
+      "operating_theater": null
+    },
+    {
+      "id": "p40",
+      "admission_day": 2,
+      "room": "r0",
+      "operating_theater": null
+    },
+    {
+      "id": "p41",
+      "admission_day": 14,
+      "room": "r0",
+      "operating_theater": null
+    }
+  ],
+  "nurses": [],
+  "surgeon_ot_schedule": [],
+  "costs": [
+    "【硬约束模式】无软惩罚，仅校验H1‑H8可行性"
+  ]
+}

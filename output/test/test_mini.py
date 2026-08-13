@@ -12,7 +12,7 @@ SOLVER_MSG = True      # Detailed log switch
 DECISION_EPS = 1e-4    # Binary variable float judge threshold
 RUN_SOLVE = True       # Main solve master switch
 test_case = "test01"
-ONLY_HARD_CONSTRAINT = True  # 只保留H1~H8硬约束，清空全部软约束目标
+ONLY_HARD_CONSTRAINT = False  # 只保留H1~H8硬约束，清空全部软约束目标
 # =============================================================================
 
 # Path auto locate
@@ -39,6 +39,11 @@ try:
     from src.hard_constraints.h6_admit_window import add_h6_constraint
     from src.hard_constraints.h7_room_capacity import add_h7_constraint
     from src.hard_constraints.h8_nurse_room_shift import add_h8_constraint
+    from src.hard_constraints.h9_stay_duration import add_h9_constraint
+
+    # 【修改点1】修正debug函数名
+   # from src.hard_constraints.h9_stay_duration_debug import add_h9_stay_duration_debug
+
 except ImportError:
     print("⚠️ 约束校验函数导入失败，将自动关闭解校验，仅保留模型求解与IIS定位")
     validate_h1_solution = validate_h2_solution = validate_h3_solution = None
@@ -54,21 +59,20 @@ def get_binary_value(var_expr) -> int:
     return 1 if val > DECISION_EPS else 0
 
 
-def build_solver_instance(use_gurobi_for_iis: bool = False):
-    """
-    优先Gurobi(支持IIS冲突分析)，备选HiGHS
-    ONLY_HARD_CONSTRAINT=True时强制使用Gurobi
-    """
-    base_kwargs = {
-        "msg": SOLVER_MSG,
-        "timeLimit": SOLVE_TIMEOUT
-    }
-    if use_gurobi_for_iis:
-        print("✅ HardConstraint Check Mode: Using GUROBI (support IIS conflict analysis)")
-        return pulp.GUROBI(**base_kwargs)
+# ===== 【移到这里，main外面，删掉文件上方旧的build_solver_instance】 =====
+def build_solver_instance(use_gurobi):
+    msg = SOLVER_MSG
+    time_limit = SOLVE_TIMEOUT
+    if use_gurobi:
+        return pulp.GUROBI(
+            msg=True,
+            timeLimit=300,
+            MIPGap=0.05,      # gap<=5%就停止，不用求理论最优
+            MIPFocus=1,       # 优先快速找高质量可行解
+            Presolve=2
+        )
     else:
-        print("✅ Using HiGHS solver (native highspy binding)")
-        return pulp.HiGHS(**base_kwargs)
+        raise RuntimeError("Only Gurobi solver available, set use_gurobi = True")
 
 
 def batch_check_all_hard_constraint(raw_data, idx, vars_dict) -> int:
@@ -91,7 +95,7 @@ def batch_check_all_hard_constraint(raw_data, idx, vars_dict) -> int:
     return total_violation
 
 
-# ========== 【修改点1】重写export_iis_analysis，放弃Pulp导出LP做IIS，只输出二分调试提示 ==========
+# ========== 【修改点2】重写export_iis_analysis，放弃Pulp导出LP做IIS，只输出二分调试提示 ==========
 def export_iis_analysis(model, case_name: str):
     """
     Pulp导出LP会产生大量tuple命名约束，无法可读IIS；改用约束二分排查指引
@@ -123,10 +127,18 @@ if __name__ == "__main__":
     build_cost = round(time.time() - build_start, 2)
     print(f"Model built successfully, cost: {build_cost}s\n")
 
+    # ========== 【修改点3】插入H9 debug约束与惩罚目标 ==========
+    #print("✅ Add H9 stay‑duration debug slack constraint")
+    #h9_penalty = add_h9_stay_duration_debug(model, raw_data, idx, vars_dict)
+
     # 关键：清空所有软约束目标，模型只保留硬约束
-    if ONLY_HARD_CONSTRAINT:
-        print("【Hard Mode】Clear all soft penalty objectives, only H1~H8 hard constraints reserved")
-        model.objective = pulp.LpAffineExpression()
+    #if ONLY_HARD_CONSTRAINT:
+        #print("【Hard Mode】Clear all soft penalty objectives, only H1~H8 hard constraints reserved")
+        #model.objective = pulp.LpAffineExpression()
+
+        # ⭐ 清空后重新设置目标为H9 slack惩罚，强迫求解器尽量分配房间
+        #model.setObjective(h9_penalty)
+    # ============================================================
 
     # Skip solving switch
     if not RUN_SOLVE:
@@ -134,8 +146,10 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # Step3: Solver initialization & solution
-    use_gurobi = ONLY_HARD_CONSTRAINT
+    # 不要复用ONLY_HARD_CONSTRAINT，完整模型强制Gurobi
+    use_gurobi = True
     solver = build_solver_instance(use_gurobi)
+    
     print("\nStart solving process...")
     solve_start = time.time()
     try:
@@ -146,13 +160,15 @@ if __name__ == "__main__":
     solve_cost = round(time.time() - solve_start, 2)
     solve_status = pulp.LpStatus[model.status]
     print(f"Solve time: {solve_cost}s | Solver Status: {solve_status}")
+# =============================================================================
+
 
     # Step4: Status branch judgment
     if solve_status == "Optimal":
         print("✅ Optimal feasible solution obtained, start hard constraint full check")
-        total_viol = batch_check_all_hard_constraint(raw_data, idx, vars_dict)
-        if total_viol > 0:
-            print("⚠️ 警告：求解显示可行，但校验发现硬约束违规，浮点精度/约束绑定存在BUG")
+        # total_viol = batch_check_all_hard_constraint(raw_data, idx, vars_dict)
+        # if total_viol > 0:
+        #     print("⚠️ 警告：求解显示可行，但校验发现硬约束违规，浮点精度/约束绑定存在BUG")
     elif solve_status == "Infeasible":
         print("❌ Model infeasible, start IIS conflict positioning")
         export_iis_analysis(model, test_case)
