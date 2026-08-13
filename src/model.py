@@ -55,6 +55,7 @@ def build_milp_model(instance_name: str):
     ENABLE_H7 = True
     ENABLE_H8 = True
     ENABLE_H9 = True
+    ENABLE_H10 = True
     ENABLE_SOFT = True   # 调试硬约束时置False；跑完可行性再打开True
     # -----------------------------------------------------------
     # All constraint imports inside function, avoid circular import risk
@@ -67,6 +68,7 @@ def build_milp_model(instance_name: str):
     from src.hard_constraints.h7_room_capacity import add_h7_constraint
     from src.hard_constraints.h8_nurse_room_shift import add_h8_constraint
     from src.hard_constraints.h9_stay_duration import add_h9_constraint
+    from src.hard_constraints.h10_admit_surgery_link import add_h10_constraint
 
 
     from src.soft_constraints.s1_age_gap import add_s1_age_gap_penalty
@@ -122,9 +124,15 @@ def build_milp_model(instance_name: str):
         (surgeon_ids, ot_ids, day_range),
         cat=pulp.LpBinary
     )
+    # 5. patient_surgery_var[p][sur][ot][d]：病人p 在d天，由surgeon sur，在ot做手术
+    patient_surgery_var = pulp.LpVariable.dicts(
+        "patient_surgery",
+        (patient_ids, surgeon_ids, ot_ids, day_range),
+        cat=pulp.LpBinary
+)
 
 
-
+    
     # -------------------------- Pack index & variable dict --------------------------
     index_sets = {
         "nurse_ids": nurse_ids,
@@ -139,7 +147,8 @@ def build_milp_model(instance_name: str):
         "x_nurse_room_shift": x_nurse_room,
         "y_patient_room": y_patient_room,
         "admit_var": admit_var,
-        "ot_surg_assign": ot_surg_assign
+        "ot_surg_assign": ot_surg_assign,
+        "patient_surgery_var": patient_surgery_var   # 在这里追加这一行！删掉外面单独那一行
     }
 
     # -------------------------- Hard Constraints --------------------------
@@ -162,6 +171,8 @@ def build_milp_model(instance_name: str):
         add_h8_constraint(model, data, index_sets, var_dict)
     if ENABLE_H9:
         add_h9_constraint(model, data, index_sets, var_dict)
+    if ENABLE_H10:
+        add_h10_constraint(model, data, index_sets, var_dict)
 
     #add_h1_constraint(model, data, index_sets, var_dict)
     #add_h2_constraint(model, data, index_sets, var_dict)

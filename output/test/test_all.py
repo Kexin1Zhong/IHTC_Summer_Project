@@ -114,11 +114,19 @@ if __name__ == "__main__":
     )
     print(f'"costs": [ "{cost_str}" ]')
 
-    # Step6: Parse decision variables
+    print(f"[DEBUG] raw_data nurses count: {len(raw_data.get('nurses', []))}")
+    print(f"[DEBUG] raw_data surgeons count: {len(raw_data.get('surgeons', []))}")
+    # p01 admit_day=1，已经分配t1手术
+    ps_val = get_binary_value(vars_dict["patient_surgery_var"]["p01"]["s0"]["t1"][1])
+    ot_val = get_binary_value(vars_dict["ot_surg_assign"]["s0"]["t1"][1])
+    print(f"[DEBUG] p01 d=1 patient_surgery_var={ps_val}, ot_surg_assign[s0][t1][1]={ot_val}")
+
+ # Step6: Parse decision variables
     y_patient_room = vars_dict["y_patient_room"]
     x_nurse_room_shift = vars_dict["x_nurse_room_shift"]
     admit_var = vars_dict["admit_var"]
     ot_surg_assign = vars_dict["ot_surg_assign"]
+    patient_surgery_var = vars_dict["patient_surgery_var"]  # 新增取出手术变量
 
     day_range = idx["day_range"]
     shift_types = idx["shift_types"]
@@ -137,64 +145,75 @@ if __name__ == "__main__":
     for patient in raw_data.get("patients", []):
         pid = patient["id"]
         admit_day = None
-        # 查找入院日
         for d in day_range:
             if get_binary_value(admit_var[pid][d]):
                 admit_day = d
                 break
-        # 查找入院当天病房
         room_tag = None
         if admit_day is not None:
             for r in room_ids:
                 if get_binary_value(y_patient_room[pid][r][admit_day]):
                     room_tag = r
                     break
-        # 原生模型无患者-手术室绑定，统一填空，后续如需绑定需要新增关联变量
+        #==== H10回填手术室、外科医生 ====
         ot_tag = None
+        sur_tag = None
+        if admit_day is not None:
+            for sur in surgeon_ids:
+                for ot in ot_ids:
+                    if get_binary_value(patient_surgery_var[pid][sur][ot][admit_day]):
+                        ot_tag = ot
+                        sur_tag = sur
+                        break
+                if ot_tag is not None:
+                    break
 
         patient_item = {
             "id": pid,
             "admission_day": admit_day if admit_day is not None else None,
             "room": room_tag,
-            "operating_theater": ot_tag
+            "operating_theater": ot_tag,
+            "operating_surgeon": sur_tag
         }
         output_sol["patients"].append(patient_item)
-
-    # Parse nurse shift & room assignment
-    for nurse in raw_data.get("nurses", []):
-        nid = nurse["id"]
-        nurse_item = {"id": nid, "assignments": []}
-        for d in day_range:
-            for s in shift_types:
-                bind_rooms = []
-                for r in room_ids:
-                    if get_binary_value(x_nurse_room_shift[nid][r][d][s]):
-                        bind_rooms.append(r)
-                if bind_rooms:
-                    nurse_item["assignments"].append({
-                        "day": d,
-                        "shift": s,
-                        "rooms": bind_rooms
-                    })
-        output_sol["nurses"].append(nurse_item)
-
-    # Parse surgeon operating theatre usage schedule
-    for sid in surgeon_ids:
-        ot_record = {
-            "surgeon_id": sid,
-            "ot_usage": []
-        }
-        for d in day_range:
-            used_ots = []
-            for otid in ot_ids:
-                if get_binary_value(ot_surg_assign[sid][otid][d]):
-                    used_ots.append(otid)
-            if used_ots:
-                ot_record["ot_usage"].append({
+        
+       
+        
+# ----------------这里下面插入护士、手术室解析代码----------------
+for nurse in raw_data.get("nurses", []):
+    nid = nurse["id"]
+    nurse_item = {"id": nid, "assignments": []}
+    for d in day_range:
+        for s in shift_types:
+            bind_rooms = []
+            for r in room_ids:
+                if get_binary_value(x_nurse_room_shift[nid][r][d][s]):
+                    bind_rooms.append(r)
+            if bind_rooms:
+                nurse_item["assignments"].append({
                     "day": d,
-                    "theaters": used_ots
+                    "shift": s,
+                    "rooms": bind_rooms
                 })
-        output_sol["surgeon_ot_schedule"].append(ot_record)
+    output_sol["nurses"].append(nurse_item)
+
+for sid in surgeon_ids:
+    ot_record = {
+        "surgeon_id": sid,
+        "ot_usage": []
+    }
+    for d in day_range:
+        used_ots = []
+        for otid in ot_ids:
+            if get_binary_value(ot_surg_assign[sid][otid][d]):
+                used_ots.append(otid)
+        if used_ots:
+            ot_record["ot_usage"].append({
+                "day": d,
+                "theaters": used_ots
+            })
+    output_sol["surgeon_ot_schedule"].append(ot_record)
+
 
     # Step7: Export solution json
     def dump_solution_json(sol_data: dict, save_dir: str, case_name: str) -> str:
@@ -226,3 +245,4 @@ if __name__ == "__main__":
     print(f"y_patient_room 取值为1的总数量：{cnt_room_valid}")
     if cnt_room_valid == 0:
         print("警告：所有患者病房占用变量均为0，根源在硬约束(H7/H2等)逻辑错误，不是导出代码")
+
