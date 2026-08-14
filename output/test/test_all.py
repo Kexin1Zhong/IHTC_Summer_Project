@@ -11,7 +11,7 @@ SOLVE_TIMEOUT = 300    # Solving timeout (seconds)
 SOLVER_MSG = False     # Detailed log switch
 DECISION_EPS = 1e-4    # Binary variable float judge threshold
 RUN_SOLVE = True       # Main solve master switch
-test_case = "test03"
+test_case = "test06"
 # =============================================================================
 
 # Path auto locate
@@ -117,9 +117,9 @@ if __name__ == "__main__":
     print(f"[DEBUG] raw_data nurses count: {len(raw_data.get('nurses', []))}")
     print(f"[DEBUG] raw_data surgeons count: {len(raw_data.get('surgeons', []))}")
     # p01 admit_day=1，已经分配t1手术
-    ps_val = get_binary_value(vars_dict["patient_surgery_var"]["p01"]["s0"]["t1"][1])
-    ot_val = get_binary_value(vars_dict["ot_surg_assign"]["s0"]["t1"][1])
-    print(f"[DEBUG] p01 d=1 patient_surgery_var={ps_val}, ot_surg_assign[s0][t1][1]={ot_val}")
+    #ps_val = get_binary_value(vars_dict["patient_surgery_var"]["p01"]["s0"]["t1"][1])
+    #ot_val = get_binary_value(vars_dict["ot_surg_assign"]["s0"]["t1"][1])
+    #print(f"[DEBUG] p01 d=1 patient_surgery_var={ps_val}, ot_surg_assign[s0][t1][1]={ot_val}")
 
  # Step6: Parse decision variables
     y_patient_room = vars_dict["y_patient_room"]
