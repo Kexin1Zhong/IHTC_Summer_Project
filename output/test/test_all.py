@@ -11,7 +11,7 @@ SOLVE_TIMEOUT = 300    # Solving timeout (seconds)
 SOLVER_MSG = False     # Detailed log switch
 DECISION_EPS = 1e-4    # Binary variable float judge threshold
 RUN_SOLVE = True       # Main solve master switch
-test_case = "test01"
+test_case = "test03"
 # =============================================================================
 
 # Path auto locate
