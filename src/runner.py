@@ -5,8 +5,8 @@ from pulp import LpStatus
 from io import StringIO
 
 def run_single_constraint_test(instance_name: str, validate_func):
-    """通用单约束测试执行器"""
-    # 自动挂载项目根目录
+    #General Single‑Constraint Test Executor
+    # Automatically mount the project root directory
     runner_file = os.path.abspath(__file__)
     src_folder = os.path.dirname(runner_file)
     project_root = os.path.abspath(os.path.join(src_folder, "../"))
@@ -17,7 +17,7 @@ def run_single_constraint_test(instance_name: str, validate_func):
     res = build_milp_model(instance_name)
     model, data, index_sets, var_dict = res[:4]
 
-    # 完全静默Gurobi，关闭所有控制台输出
+    # Fully silence Gurobi and turn off all console output
     silent_gurobi = pulp.GUROBI_CMD(
         msg=False,
         logPath=None,
@@ -28,14 +28,14 @@ def run_single_constraint_test(instance_name: str, validate_func):
     print(f"Solver Status: {status}")
 
     if status == "Optimal":
-        # 全局拦截校验函数所有打印，杜绝意外输出
+        # Globally intercept all prints from validation functions to prevent unintended outputs
         stdout_buffer = StringIO()
         sys.stdout = stdout_buffer
         try:
             validate_func(data, index_sets, var_dict)
         finally:
             sys.stdout = sys.__stdout__
-        # 只输出校验总结
-        print("约束校验执行完成，明细日志已屏蔽")
+        # Output only the verification summary
+        print("Constraint verification completed. Detailed logs have been masked")
     else:
-        print("模型无解，无法执行约束校验")
+        print("The model has no solution and constraint verification cannot be performed")

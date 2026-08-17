@@ -21,7 +21,9 @@ def add_h9_stay_duration_debug(model, data, index_sets, var_dict):
                     >= var_dict["admit_var"][pid][d],
                     f"H9_stay_debug_{pid}_d{d}_s{day_stay}"
                 )
-    # 重点：把所有slack加到目标，给一个很大权重，强迫求解器尽量少用slack
+    
+# Key point: Add all slacks to the objective and assign them a large weight to force the solver to minimize the use of slacks as much as possible
+
     penalty_weight = 10000
     h9_penalty_expr = penalty_weight * pulp.lpSum(slack_list)
     return h9_penalty_expr

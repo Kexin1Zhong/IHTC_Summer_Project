@@ -16,20 +16,20 @@ if __name__ == "__main__":
     model.solve(solver)
 
     if model.status == pulp.LpStatusInfeasible:
-        print("===== 导出LP模型，启动Gurobi-IIS精准分析 =====")
+        print("===== Export LP model and start Gurobi‑IIS precise analysis =====")
         model.writeLP("model_named.lp")
         gp_model = gp.read("model_named.lp")
         gp_model.optimize()
         if gp_model.Status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD):
             gp_model.computeIIS()
             gp_model.write("conflict_constraints.ilp")
-            print("【IIS最小冲突约束清单】")
+            print("[IIS Minimum Conflict Constraint List]")
             for con in gp_model.getConstrs():
                 if con.IISConstr:
                     name = con.ConstrName
-                    print(f"冲突约束名称：{name}")
-                    # 自动归类提示
+                    print(f"Conflict constraint name: {name}")
+                    # Auto‑categorization Prompt
                     if name.startswith("h"):
-                        print(f"  归类：硬约束，查看src/hard_constraints对应脚本")
+                        print(f" Classification: Hard Constraints, check the scripts corresponding to src/hard_constraints")
                     elif name.startswith("s"):
-                        print(f"  归类：软约束，不会导致无解，可忽略")
+                        print(f"  Category: soft constraint, will not lead to no‑solution, can be ignored")

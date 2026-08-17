@@ -17,9 +17,9 @@ def add_h10_constraint(model, data, index_sets, var_dict):
 
     for p in patients:
         pid = p["id"]
-        p_surgeon = p["surgeon_id"]   # patient绑定的主刀外科医生
+        p_surgeon = p["surgeon_id"]  # Primary Surgeon Bound to the Patient
         for d in day_range:
-            # ========= H10‑1：入院 ⇒ 当天必须有手术，只能使用该病人自己的外科医生 =========
+            # ========= H10‑1: Admission ⇒ Surgery Must Be Performed on the Same Day, and Only the Patient’s Own Surgeon Can Be Used =========
             model += (
                 pulp.lpSum([
                     patient_surgery_var[pid][p_surgeon][ot][d]
@@ -28,7 +28,7 @@ def add_h10_constraint(model, data, index_sets, var_dict):
                 f"H10_admit_implies_surgery_p{pid}_d{d}"
             )
 
-            # ========= H10‑2：手术发生，则激活ot_surg_assign（供给H3/H4使用） =========
+            # ========= H10‑2: If surgery occurs, activate ot_surg_assign (for use by H3/H4) =========
             for ot in ot_ids:
                 model += (
                     ot_surg_assign[p_surgeon][ot][d]
@@ -36,7 +36,7 @@ def add_h10_constraint(model, data, index_sets, var_dict):
                     f"H10_trigger_otsurg_p{pid}_ot{ot}_d{d}"
                 )
 
-            # ========= H10‑3：同一个病人同一天最多一次手术 =========
+            # ========= H10‑3: Maximum one surgery per patient per day =========
             model += (
                 pulp.lpSum([
                     patient_surgery_var[pid][sur][ot][d]

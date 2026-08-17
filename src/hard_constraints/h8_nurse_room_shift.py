@@ -73,7 +73,7 @@ def validate_h8_solution(sol_data, index_sets, var_dict):
                     nurse_sum += pulp.value(x[n][r][d][s])
                 if nurse_sum < 1e-6:
                     h8_violation_count += 1
-                    # 删掉此处print，不再逐条刷屏
+                    # Remove this print statement to stop spamming output line‑by‑line
 
     if h8_violation_count == 0:
         print("✅ H8 Test Passed: All occupied rooms have nurse coverage for every shift")

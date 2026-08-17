@@ -11,7 +11,7 @@ SOLVE_TIMEOUT = 300    # Solving timeout (seconds)
 SOLVER_MSG = False     # Detailed log switch
 DECISION_EPS = 1e-4    # Binary variable float judge threshold
 RUN_SOLVE = True       # Main solve master switch
-test_case = "test06"
+test_case = "test04"
 # =============================================================================
 
 # Path auto locate
@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
     print(f"[DEBUG] raw_data nurses count: {len(raw_data.get('nurses', []))}")
     print(f"[DEBUG] raw_data surgeons count: {len(raw_data.get('surgeons', []))}")
-    # p01 admit_day=1，已经分配t1手术
+   # p01 admit_day=1, t1 surgery has been assigned
     #ps_val = get_binary_value(vars_dict["patient_surgery_var"]["p01"]["s0"]["t1"][1])
     #ot_val = get_binary_value(vars_dict["ot_surg_assign"]["s0"]["t1"][1])
     #print(f"[DEBUG] p01 d=1 patient_surgery_var={ps_val}, ot_surg_assign[s0][t1][1]={ot_val}")
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         "costs": [cost_str]
     }
 
-    # ========== 患者格式化：id / admission_day(int) / room / operating_theater ==========
+    # ========== Patient Formatting: id / admission_day(int) / room / operating_theater ==========
     for patient in raw_data.get("patients", []):
         pid = patient["id"]
         admit_day = None
@@ -155,7 +155,7 @@ if __name__ == "__main__":
                 if get_binary_value(y_patient_room[pid][r][admit_day]):
                     room_tag = r
                     break
-        #==== H10回填手术室、外科医生 ====
+        #==== H10 Back‑fill Operating Room, Surgeon ====
         ot_tag = None
         sur_tag = None
         if admit_day is not None:
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         
        
         
-# ----------------这里下面插入护士、手术室解析代码----------------
+# ----------------Insert nurse and operating‑room parsing code below here----------------
 for nurse in raw_data.get("nurses", []):
     nid = nurse["id"]
     nurse_item = {"id": nid, "assignments": []}
@@ -234,7 +234,7 @@ for sid in surgeon_ids:
     else:
         print("\n❌ Result file saving failed")
 
-    # ========== 调试代码：检测y_patient_room是否全为0，定位约束问题 ==========
+    # ========== Debug Code: Check whether y_patient_room is all zeros to locate constraint issues ==========
     print("\n====== Debug: Count non-zero patient-room variables ======")
     cnt_room_valid = 0
     for pid in idx["patient_ids"]:
@@ -242,7 +242,7 @@ for sid in surgeon_ids:
             for rid in room_ids:
                 if get_binary_value(y_patient_room[pid][rid][d]) == 1:
                     cnt_room_valid += 1
-    print(f"y_patient_room 取值为1的总数量：{cnt_room_valid}")
+    print(f"Total number of cases where y_patient_room equals 1: {cnt_room_valid}")
     if cnt_room_valid == 0:
-        print("警告：所有患者病房占用变量均为0，根源在硬约束(H7/H2等)逻辑错误，不是导出代码")
+        print("Warning: All patient ward‑occupancy variables are zero. The root cause lies in logical errors in hard constraints (H7/H2, etc.), not the exported code")
 

@@ -44,7 +44,7 @@ def build_milp_model(instance_name: str):
     :param instance_name: target test case name
     :return: model, raw_data, index_sets, var_dict, s1_pen, s2_pen, s3_pen, s4_pen, s5_pen, s6_pen, s7_pen, s8_pen
     """
-    # =====在这里最顶部加入这一组布尔开关=====
+    # =====Add this set of boolean switches at the very top=====
     # -------- constraint toggle for binary search debug --------
     ENABLE_H1 = True
     ENABLE_H2 = True
@@ -56,7 +56,7 @@ def build_milp_model(instance_name: str):
     ENABLE_H8 = True
     ENABLE_H9 = True
     ENABLE_H10 = True
-    ENABLE_SOFT = True   # 调试硬约束时置False；跑完可行性再打开True
+    ENABLE_SOFT = True   # Set to False when debugging hard constraints; switch to True after feasibility check is completed
     # -----------------------------------------------------------
     # All constraint imports inside function, avoid circular import risk
     from src.hard_constraints.h1_gender_mix import add_h1_constraint
@@ -124,7 +124,7 @@ def build_milp_model(instance_name: str):
         (surgeon_ids, ot_ids, day_range),
         cat=pulp.LpBinary
     )
-    # 5. patient_surgery_var[p][sur][ot][d]：病人p 在d天，由surgeon sur，在ot做手术
+    # 5. patient_surgery_var[p][sur][ot][d]：Patient p underwent surgery in ot on day d by surgeon sur
     patient_surgery_var = pulp.LpVariable.dicts(
         "patient_surgery",
         (patient_ids, surgeon_ids, ot_ids, day_range),
@@ -152,7 +152,7 @@ def build_milp_model(instance_name: str):
     }
 
     # -------------------------- Hard Constraints --------------------------
-    # 到调用各个add_xxx_constraint的地方，全部包上if判断
+    # Wrap all places where each add_xxx_constraint is called with if‑condition judgments
     if ENABLE_H1:
         add_h1_constraint(model, data, index_sets, var_dict)
     if ENABLE_H2:
@@ -187,7 +187,7 @@ def build_milp_model(instance_name: str):
 
     # -------------------------- Soft Constraints & Objective --------------------------
     if ENABLE_SOFT:
-    # 二分开关：逐个打开，定位作恶的软约束
+    # Binary‑search Switch: Enable One by One to Locate Malicious Soft Constraints
         use_s1 = True
         use_s2 = True
         use_s3 = True
@@ -223,7 +223,7 @@ def build_milp_model(instance_name: str):
         #s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
         #s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict)
     #else:
-        # 软约束关闭，惩罚项赋值为0，pulp可以直接int参与lpSum
+       # Soft constraints are turned off, penalty terms are assigned to 0, and pulp allows direct use of int in lpSum
         #s1_pen = s2_pen = s3_pen = s4_pen = s5_pen = s6_pen = s7_pen = s8_pen = 0
 
     #total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
@@ -238,7 +238,7 @@ def build_milp_model(instance_name: str):
     #s7_pen = add_s7_admission_delay_penalty(model, data, index_sets, var_dict)
     #s8_pen = add_s8_unscheduled_optional_penalty(model, data, index_sets, var_dict)
 
-    # 目标函数并入溢出惩罚
+    # Incorporate Overflow Penalty into the Objective Function
     #total_penalty = s1_pen + s2_pen + s3_pen + s4_pen + s5_pen + s6_pen + s7_pen + s8_pen + overflow_total_penalty
     #model += total_penalty, "MinimizeTotalSoftConstraintPenalty"
 

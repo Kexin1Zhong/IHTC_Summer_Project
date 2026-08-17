@@ -1,9 +1,9 @@
 import json
 import os
 
-# 当前脚本文件路径
+# Current script file path
 script_path = os.path.abspath(__file__)
-# 向上回溯两层，定位到项目根目录 IHTC_Summer_Project
+# Trace back two levels upwards to locate the project root directory IHTC_Summer_Project
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
 
 data_path = os.path.join(project_root, "data", "ihtc2024_test_dataset", "test01.json")

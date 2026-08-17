@@ -8,9 +8,11 @@ def add_h6_constraint(model, data, index_sets, var_dict):
     day_range = index_sets["day_range"]
     admit_var = var_dict["admit_var"]
 
-    # ========== H6 第一部分：入院时间窗口约束（原题要求） ==========
-    # 1. mandatory患者：仅 [release_day, due_day] 允许入院
-    # 2. optional患者：d >= release_day 允许入院，无due截止
+
+# ========== H6 Part 1: Admission Time‑Window Constraints (Original Problem Requirements) ==========
+    # 1. Mandatory patients: Admission is only permitted within [release_day, due_day]
+    # 2. Optional patients: Admission is permitted if d >= release_day, with no due‑day deadline
+
     for p in patients:
         pid = p["id"]
         release_day = p["surgery_release_day"]
@@ -24,8 +26,10 @@ def add_h6_constraint(model, data, index_sets, var_dict):
                 if d < release_day:
                     model += admit_var[pid][d] == 0, f"H6_optional_p{pid}_invalid_day{d}"
 
-    # ========== 已全部移除：自行增加的 admit→当日占房间 绑定约束 + slack调试代码 ==========
-    # 该绑定不属于官方H6硬约束，会造成数据集可行解被人为掐掉，导致infeasible
+
+# ========== All removed: Self‑added admit‑to‑daily room occupancy binding constraints + slack debugging code ==========
+    # This binding is not an official H6 hard constraint; it will artificially eliminate feasible solutions in the dataset and lead to infeasibility
+
 
 
 def validate_h6_solution(sol_data, index_sets, var_dict):

@@ -6,7 +6,7 @@ import pandas as pd
 
 
 def load_instance_meta(json_path: str):
-    """读取原始数据集，拿到患者length_of_stay信息"""
+    #Read the original dataset and obtain the patient's length_of_stay information
     folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/ihtc2024_test_dataset"))
     instance_meta_path = os.path.join(folder, "test01.json")
     with open(instance_meta_path, "r", encoding="utf-8") as f:
@@ -14,7 +14,7 @@ def load_instance_meta(json_path: str):
 
 
 def visualize_solution(result_json_path: str):
-    # 读取求解输出
+    # Read, solve and output
     with open(result_json_path, "r", encoding="utf-8") as f:
         sol = json.load(f)
 
@@ -27,7 +27,7 @@ def visualize_solution(result_json_path: str):
 
     output_prefix = os.path.join(os.path.dirname(result_json_path), f"{instance_name}")
 
-    # ========== 1. Patient Gantt Chart 患者住院甘特图 ==========
+    # ========== 1. Patient Gantt Chart In‑hospital  ==========
     plt.rcParams["font.size"] = 9
     fig, ax = plt.subplots(figsize=(14, len(sol["patients"])*0.35 + 2))
     y_ticks_labels = []
@@ -52,7 +52,7 @@ def visualize_solution(result_json_path: str):
     plt.savefig(f"{output_prefix}_patient_gantt.png", dpi=150)
     plt.close()
 
-    # ========== 2. Operating Theatre Gantt 手术室甘特图 ==========
+    # ========== 2. Operating Theatre Gantt  ==========
     fig2, ax2 = plt.subplots(figsize=(13, 3.5))
     ot_ids = ["t0", "t1"]
     ot_y = {ot: idx for idx, ot in enumerate(ot_ids)}
@@ -74,7 +74,7 @@ def visualize_solution(result_json_path: str):
     plt.close()
 
 
-        # ========== 3. Static HTML Report 静态网页报告（双击直接打开） ==========
+        # ========== 3. Static HTML Report  ==========
     html_lines = []
     html_lines.append("<html lang='en'><head><meta charset='utf-8'>")
     html_lines.append("""
@@ -99,17 +99,17 @@ def visualize_solution(result_json_path: str):
     html_lines.append("<h2>Patient Schedule</h2>")
     html_lines.append("<table><tr><th>PatientID</th><th>Mandatory</th><th>AdmitDay</th><th>Room</th><th>OperatingTheater</th></tr>")
 
-    # sol["patients"] 求解输出；raw_patients 原始输入data["patients"]
+    # sol["patients"] solution output; raw_patients raw input data["patients"]
     for sol_p, raw_p in zip(sol["patients"], raw_patients):
         mandatory_val = raw_p.get("mandatory")
-        # 增加emoji标记
+        # Add emoji markers
         if mandatory_val:
             mandatory_text = "🔴 True"
         else:
             mandatory_text = "⚪ False"
         admit = sol_p.get("admission_day")
 
-        # 告警：mandatory=True 但未入院，整行浅红
+        # Alert: mandatory=True but not admitted to hospital, entire row in light red
         if mandatory_val is True and admit is None:
             tr_style = 'style="background:#ffdddd;"'
         else:
@@ -138,6 +138,6 @@ def visualize_solution(result_json_path: str):
 
 
 if __name__ == "__main__":
-    # 在这里传入你的求解结果json路径
+    # Pass in the JSON path of your solution result here
     res_json = "/Users/mac/Desktop/IHTC_Summer_Project/output/test/final_solution_test01.json"
     visualize_solution(res_json)
