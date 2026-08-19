@@ -7,11 +7,11 @@ import shutil
 import pulp
 
 # ===================== Global Constant Configuration Area =====================
-SOLVE_TIMEOUT = 300    # Solving timeout (seconds)
+SOLVE_TIMEOUT = 1800    # Solving timeout (seconds)
 SOLVER_MSG = False     # Detailed log switch
 DECISION_EPS = 1e-4    # Binary variable float judge threshold
 RUN_SOLVE = True       # Main solve master switch
-test_case = "test04"
+test_case = "test09"
 # =============================================================================
 
 # Path auto locate
@@ -48,6 +48,8 @@ def build_solver_instance():
     }
     print("✅ Using HiGHS solver (native highspy binding)")
     return pulp.HiGHS(**base_kwargs)
+
+
 # =============================================================================
 
 

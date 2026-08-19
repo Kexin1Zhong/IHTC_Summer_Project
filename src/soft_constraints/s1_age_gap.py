@@ -13,13 +13,21 @@ def add_s1_age_gap_penalty(model: pulp.LpProblem, data: dict, index_sets: dict, 
     weight_s1 = data["weights"]["room_mixed_age"]
     y = var_dict["y_patient_room"]
 
+    
+# Full mapping, compatible with all tags of test01‑06 and test07
+
     age_mapping = {
         "infant": 1,
-        "adult": 2,
-        "elderly": 3
+        "baby": 1,
+        "child": 2,
+        "young": 3,
+        "adult": 4,
+        "elderly": 5
     }
-    max_age_num = max(age_mapping[p["age_group"]] for p in patients)
-    min_age_num = min(age_mapping[p["age_group"]] for p in patients)
+
+    age_nums = [age_mapping[p["age_group"]] for p in patients]
+    max_age_num = max(age_nums)
+    min_age_num = min(age_nums)
     M = max_age_num - min_age_num
 
     pen_age_gap = pulp.LpVariable.dicts(
@@ -28,7 +36,6 @@ def add_s1_age_gap_penalty(model: pulp.LpProblem, data: dict, index_sets: dict, 
         lowBound=0,
         cat=pulp.LpContinuous
     )
-    # Aux binary: 1 if room rid on day d has at least one patient
     room_occupy = pulp.LpVariable.dicts(
         "s1_room_occ",
         (room_ids, day_range),
@@ -42,22 +49,19 @@ def add_s1_age_gap_penalty(model: pulp.LpProblem, data: dict, index_sets: dict, 
             max_age = pulp.LpVariable(f"s1_max_age_r{rid}_d{d}", lowBound=0, cat=pulp.LpContinuous)
             min_age = pulp.LpVariable(f"s1_min_age_r{rid}_d{d}", lowBound=0, cat=pulp.LpContinuous)
 
-            # room_occupy indicator: sum(y) >0 → 1
             model += pulp.lpSum([y[p["id"]][rid][d] for p in patients]) >= room_occupy[rid][d]
             model += pulp.lpSum([y[p["id"]][rid][d] for p in patients]) <= len(patients) * room_occupy[rid][d]
 
             for p in patients:
                 pid = p["id"]
                 ag_num = age_mapping[p["age_group"]]
-                # max_age >= age of assigned patient (active when room occupied)
+
                 model += max_age >= ag_num * y[pid][rid][d]
                 model += max_age <= max_age_num * room_occupy[rid][d]
 
-                # min_age bound
                 model += min_age <= ag_num * y[pid][rid][d] + max_age_num * (1 - y[pid][rid][d])
                 model += min_age >= min_age_num * room_occupy[rid][d]
 
-            # Penalty >= age gap; zero penalty when room empty
             model += pen_age_gap[rid][d] >= max_age - min_age
             model += pen_age_gap[rid][d] <= M * room_occupy[rid][d]
 
